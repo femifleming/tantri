@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:#0c0b0a}
+body{font-family:"SF Mono",Menlo,monospace;color:#d8d2c6;font-size:11px}
+.top{position:absolute;left:0;right:0;top:0;height:44px;border-bottom:1px solid #2a2622;display:flex;align-items:center;padding:0 22px;gap:28px}
+.top .n{font-size:15px;letter-spacing:5px;color:#f29a2e}
+.top span{color:#7d756a}.top b{color:#e9e3d7;font-weight:normal}
+.cell{position:absolute;border:1px solid #2a2622;padding:12px 14px;box-sizing:border-box}
+.cell h3{margin:0 0 8px;font-weight:normal;font-size:11px;letter-spacing:3px;color:#f29a2e}
+.cell h3 span{color:#7d756a;letter-spacing:1px;margin-left:8px}
+.row{display:flex;gap:4px;flex-wrap:wrap}
+.k{width:62px;text-align:center;color:#a9a195;font-size:10px}.k i{display:block;font-style:normal;color:#e9e3d7}
+table{border-collapse:collapse;width:100%;font-size:10.5px}td{padding:2.5px 4px;border-bottom:1px solid #1f1c19}td:first-child{color:#f29a2e}
+.on td{color:#e9e3d7!important;background:#f29a2e14}
+</style></head><body>
+<div class="top"><div class="n">TANTRI</div><div><span>Sa</span> <b>138.590 Hz</b></div><div><span>rāga</span> <b>Yaman</b></div><div><span>scale</span> <b>22-śruti just</b></div><div><span>poly</span> <b>12 / 16</b></div><div><span>meend</span> <b>PB ±7 śr · MPE</b></div><div style="margin-left:auto"><span>CPU</span> <b>9.4%</b></div></div>
+<div class="cell" style="left:0;top:44px;width:330px;height:470px"><h3>ŚRUTI<span>tap to toggle · drag to bend cents</span></h3><div id="wheel" style="display:flex;justify-content:center"></div>
+ <table id="tab"></table></div>
+<div class="cell" style="left:330px;top:44px;width:540px;height:300px"><h3>SITAR<span>waveguide · curved-bridge contact · 13 taraf · 2 chikari</span></h3>
+ <svg id="str" width="510" height="120"></svg><div class="row" id="sk"></div></div>
+<div class="cell" style="left:870px;top:44px;width:330px;height:300px"><h3>TABLA<span>modal · syahi-loaded</span></h3>
+ <svg id="modes" width="300" height="110"></svg><div class="row" id="tk"></div></div>
+<div class="cell" style="left:330px;top:344px;width:870px;height:170px"><h3>TANPURA<span>4 strings · jawari thread · Pa Sa Sa sa</span></h3>
+ <div style="display:flex;gap:16px"><canvas id="spec" width="1040" height="240" style="width:440px;height:120px"></canvas><div class="row" id="nk" style="width:400px;flex-wrap:nowrap"></div></div></div>
+<div class="cell" style="left:0;top:514px;width:1200px;height:266px"><h3>KEYMAP<span>MIDI note → śruti (octave-repeating, no 12-TET) · tabla on ch 10 → bols</span></h3><svg id="keys" width="1170" height="210"></svg></div>
+<script>
+const st={track:"#2a2622",fill:"#f29a2e",pointer:"#e9e3d7",size:44,w:2.4,body:"#161412",inset:7};
+const K=(id,l)=>document.getElementById(id).innerHTML=l.map(([n,v,t])=>`<div class="k">${knob(v,st)}<br>${n}<i>${t}</i></div>`).join("");
+document.getElementById("wheel").innerHTML=shrutiWheel(104,{ring:"#3a3530",on:"#f29a2e",off:"#4a443d",text:"#a9a195",font:"Menlo"});
+document.getElementById("tab").innerHTML=[...YAMAN].map(i=>`<tr class="on"><td>${SHRUTI[i][0]}</td><td>${SHRUTI[i][1]}</td><td>${SHRUTI[i][2]}¢</td><td>${(138.59*eval(SHRUTI[i][1])).toFixed(2)} Hz</td></tr>`).join("");
+let s="";for(let j=0;j<3;j++){s+=`<g transform="translate(0,${j*8})" opacity="${j?0.35:1}">`+stringWave(510,104,j?"#7d756a":"#f29a2e",1.1+j*.9)+"</g>";}
+s+=`<path d="M0,96 Q30,70 36,52" stroke="#e9e3d7" stroke-width="1" fill="none" stroke-dasharray="2 2"/><text x="40" y="104" fill="#7d756a" font-size="9">jawari contact zone</text>`;
+document.getElementById("str").innerHTML=s;
+K("sk",[["mizrab",.62,"0.62"],["jawari",.71,"0.71"],["meend",.5,"±7"],["taraf",.58,"-9 dB"],["chikari",.4,"-14"],["gourd",.66,"T60"],["gamak",.3,"5 Hz"],["decay",.74,"6.2s"],["pluck",.22,"1/9"],["damp",.45,"0.45"],["room",.35,"18%"],["out",.8,"-3"]]);
+let m="";const ratios=[1,2,3,4,5,1.52,2.3,3.1,6];ratios.forEach((r,i)=>{const x=10+r*45,h=100*Math.exp(-i*.28);m+=`<line x1="${x}" x2="${x}" y1="100" y2="${100-h*0.9}" stroke="${i<5?"#f29a2e":"#7d756a"}" stroke-width="3"/>`+(i<5?`<text x="${x}" y="110" fill="#7d756a" font-size="9" text-anchor="middle">${r}f</text>`:"");});
+document.getElementById("modes").innerHTML=m+`<text x="150" y="12" fill="#a9a195" font-size="9">dayan harmonic modes</text>`;
+K("tk",[["dayan",.5,"= Sa"],["bayan",.44,"F2"],["syahi",.6,"load"],["glide",.55,"AT"],["out",.75,"-4"]]);
+K("nk",[["cycle",.42,"58bpm"],["jawari",.8,"thread"],["1st str",.0,"Pa"],["human",.5,"12ms"],["width",.6,"60%"],["out",.6,"-8"]]);
+// tanpura spectrogram – the jawari 'swirl' of harmonics rising and falling
+const cv=document.getElementById("spec"),g=cv.getContext("2d");g.fillStyle="#0c0b0a";g.fillRect(0,0,1040,240);
+for(let x=0;x<1040;x+=2)for(let h=1;h<40;h++){const t=(x%260)/260,peak=Math.exp(-((h/40-t*1.1)**2)/0.012);const a=(0.15+peak)*Math.exp(-h*.04)*(1-t*.5);
+ const y=240-h*6;g.fillStyle=`rgba(242,154,46,${Math.min(1,a)})`;g.fillRect(x,y,2,3);}
+// keymap: MIDI notes over two octaves, each mapped to a shruti
+let k="";const notes=[...YAMAN];for(let o=0;o<3;o++)notes.forEach((i,j)=>{const x=10+(o*7+j)*54;const c=SHRUTI[i][2];
+ k+=`<rect x="${x}" y="10" width="50" height="120" fill="${j==0?"#f29a2e22":"#161412"}" stroke="#2a2622"/><text x="${x+25}" y="40" text-anchor="middle" fill="#e9e3d7" font-size="14">${SHRUTI[i][0]}${o==0?"̣":o==2?"'":""}</text>`;
+ k+=`<text x="${x+25}" y="60" text-anchor="middle" fill="#7d756a" font-size="9">${SHRUTI[i][1]}</text><text x="${x+25}" y="76" text-anchor="middle" fill="#7d756a" font-size="9">${c}¢</text><text x="${x+25}" y="120" text-anchor="middle" fill="#4a443d" font-size="9">n${48+o*12+[0,2,4,6,7,9,11][j]}</text>`;});
+k+=`<text x="10" y="160" fill="#a9a195" font-size="10">White-key order follows the rāga's ascending swaras; black keys reach the in-between śrutis (komal / tīvra / ati-komal) of the chosen rāga.</text>`;
+k+=`<text x="10" y="178" fill="#a9a195" font-size="10">Pitch-bend = mīnd in śruti steps · poly aftertouch = gamak depth / bayan pressure · velocity = mizrab force · MPE per-note slides.</text>`;
+document.getElementById("keys").innerHTML=k;
+</script></body></html>

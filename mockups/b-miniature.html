@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:#1d2c6b}
+body{font-family:"Didot",serif;color:#3b1d0e}
+.border{position:absolute;inset:0;background:
+ radial-gradient(circle at 10px 10px,#d8a93a 3px,transparent 4px) 0 0/20px 20px,
+ linear-gradient(#1d2c6b,#1d2c6b)}
+.vine{position:absolute;inset:18px;border:2px solid #d8a93a;background:#b8332a}
+.vine:before{content:"";position:absolute;inset:6px;border:1px solid #f4d27a;background:
+ radial-gradient(ellipse 6px 10px at 10px 12px,#f4d27a 60%,transparent 64%) 0 0/24px 24px,
+ radial-gradient(circle at 22px 22px,#1d2c6b 3px,transparent 4px) 0 0/24px 24px,#b8332a}
+.page{position:absolute;inset:44px;background:#efe0bd;border:3px solid #d8a93a;box-shadow:inset 0 0 40px #c9a76666}
+.page:after{content:"";position:absolute;inset:0;filter:url(#paper);opacity:.18;mix-blend-mode:multiply;background:#000;pointer-events:none}
+h1{position:absolute;left:30px;top:14px;margin:0;font-size:38px;color:#8e1d16;letter-spacing:3px;font-weight:normal}
+h1 span{font-family:"ITF Devanagari","Devanagari Sangam MN";font-size:30px;color:#1d2c6b;margin-left:10px}
+.cart{position:absolute;right:26px;top:18px;display:flex;gap:10px}
+.c{border:1.5px solid #d8a93a;background:#1d2c6b;color:#f4d27a;padding:6px 14px;font-size:14px;border-radius:14px}
+.c b{color:#fff;font-weight:normal;font-size:17px}
+.arch{box-sizing:border-box;position:absolute;top:76px;bottom:20px;border:2px solid #d8a93a;background:#f6ead0;padding:42px 14px 10px;
+ border-radius:120px 120px 4px 4px / 50px 50px 4px 4px;box-shadow:0 0 0 5px #efe0bd,0 0 0 7px #1d2c6b}
+.arch h2{position:absolute;top:10px;left:0;right:0;text-align:center;margin:0;font-weight:normal;color:#8e1d16;font-size:20px;letter-spacing:5px}
+.arch h2 span{display:block;font-family:"ITF Devanagari";font-size:12px;color:#1d2c6b;letter-spacing:1px}
+.knobs{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px}
+.k{width:64px;text-align:center;font-size:12px}
+.k i{display:block;font-style:normal;color:#1d2c6b;font-size:10.5px;font-family:Baskerville}
+.lbl{font-size:11px;letter-spacing:3px;color:#8e1d16;text-align:center;margin:8px 0 0}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="4"/></filter></svg>
+<div class="border"></div><div class="vine"></div>
+<div class="page">
+<h1>Tantri<span>तन्त्री</span></h1>
+<div class="cart"><div class="c">Sa <b>138.59 Hz</b></div><div class="c">rāga <b>Yaman</b></div><div class="c">thāṭ <b>Kalyāṇ</b></div><div class="c">śruti <b>just</b></div></div>
+<div class="arch" style="left:20px;width:410px"><h2>SITĀR<span>सितार</span></h2>
+ <div style="display:flex;justify-content:center" id="wheel"></div><div class="knobs" id="sk"></div></div>
+<div class="arch" style="left:446px;width:390px"><h2>TABLĀ<span>तबला</span></h2>
+ <div style="display:flex;gap:10px;justify-content:center" id="drums"></div><div class="knobs" id="tk"></div><div id="bols" style="padding:0 6px"></div><div id="tala" style="display:flex;justify-content:center;margin-top:0"></div></div>
+<div class="arch" style="left:852px;width:236px"><h2>TĀNPŪRĀ<span>तानपूरा</span></h2>
+ <div id="cyc" style="display:flex;justify-content:center"></div><div class="knobs" id="nk"></div></div>
+</div>
+<script>
+const st={track:"#d8a93a66",fill:"#8e1d16",body:"#1d2c6b",ring:"#d8a93a",pointer:"#f4d27a",size:48,inset:7,w:3};
+const K=(id,l)=>document.getElementById(id).innerHTML=l.map(([n,v,t])=>`<div class="k">${knob(v,st)}<br>${n}<i>${t}</i></div>`).join("");
+document.getElementById("wheel").innerHTML=shrutiWheel(104,{ring:"#1d2c6b88",on:"#8e1d16",off:"#1d2c6b66",text:"#1d2c6b",font:"Didot"});
+K("sk",[["Mizrāb",.62,"wire pick"],["Jawārī",.71,"bridge"],["Mīnd",.5,"±7 śruti"],["Tarab",.58,"13 str."],["Cikārī",.4,"Sa' Sa''"],["Tumbā",.66,"gourd"],["Gamak",.3,"oscill."],["Decay",.74,"6.2 s"],["Level",.8,"-3 dB"]]);
+document.getElementById("drums").innerHTML=membrane(50,{skin:"#e9cf9a",rim:"#8e1d16",syahi:"#20160f",mode:"#1d2c6b"})+membrane(58,{skin:"#ddbf86",rim:"#1d2c6b",syahi:"#20160f",mode:"#8e1d16",off:14});
+document.getElementById("sk").insertAdjacentHTML("afterend",`<div class="lbl">TARAB · sympathetic</div>`+tarafRow("#1d2c6b","#8e1d16"));
+K("tk",[["Dāyāṅ",.5,"= Sa"],["Bāyāṅ",.44,"press"],["Syāhī",.6,"load"],["Ghe glide",.55,"AT"],["Level",.75,"-4 dB"]]);
+document.getElementById("bols").innerHTML=bolGrid("border:1px solid #d8a93a;background:#efe0bd;color:#8e1d16;text-align:center","#1d2c6b");
+document.getElementById("cyc").innerHTML=tanpuraCycle("#8e1d16","#1d2c6b","Didot").replace('width="210"','width="210" transform="scale(.95)"');
+K("nk",[["Cycle",.42,"58 bpm"],["Jawārī",.8,"thread"],["Pa · Ma · Ni",.0,"Pa"],["Human",.5,"timing"],["Width",.6,"stereo"],["Level",.6,"-8 dB"]]);
+document.getElementById("tala").innerHTML=talaRing(86,"#8e1d16","#1d2c6b","#1d2c6b","Didot");
+document.getElementById("nk").insertAdjacentHTML("afterend",`<div class="lbl">JAWĀRĪ THREADS</div>`+tanpuraStrings(200,150,"#1d2c6b","#8e1d16","Didot"));
+</script></body></html>

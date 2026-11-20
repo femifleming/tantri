@@ -1,0 +1,86 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+:root{--bg:#0a0c0d;--tile:#0f2128;--edge:#1b3640;--gold:#c9a238;--gold2:#e2bf55;--white:#f3f1ec;--orange:#ef8a2e;--coral:#ec5f55;--red:#c3261f;--pink:#f2a9c2;--mag:#e2316b;--brown:#94672a}
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:var(--bg)}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--white)}
+.top{position:absolute;left:28px;right:28px;top:20px;height:40px;display:flex;align-items:center;gap:26px}
+.logo{font-weight:800;font-size:24px;letter-spacing:1px}
+.pill{font-weight:700;font-size:13px;letter-spacing:.5px;color:#9fb3ba}.pill b{color:var(--white);margin-left:6px}
+.tile{position:absolute;top:76px;width:368px;height:368px;background:var(--tile);border:1px solid var(--edge)}
+.name{position:absolute;top:456px;font-weight:800;font-size:21px;letter-spacing:.5px}
+.name span{font-weight:700;color:#9fb3ba;font-size:13px;margin-left:8px}
+.ctl{position:absolute;top:494px;width:368px;display:flex;flex-wrap:wrap;gap:6px 0}
+.k{width:61px;text-align:center;font-weight:700;font-size:10px;letter-spacing:.6px;color:#c7d3d6}
+.k i{display:block;font-style:normal;font-weight:500;color:#7f959c;font-size:10px;letter-spacing:0;margin-top:1px}
+.strip{position:absolute;left:28px;right:28px;bottom:22px;height:62px;background:var(--tile);border:1px solid var(--edge)}
+</style></head><body>
+<div class="top"><div class="logo">TANTRI</div><div class="pill">SA<b>138.59 HZ</b></div><div class="pill">RAGA<b>YAMAN</b></div><div class="pill">SHRUTI<b>22 · JUST</b></div><div class="pill">MEEND<b>±7</b></div><div class="pill" style="margin-left:auto">VOICES<b>12</b></div></div>
+<div class="tile" style="left:28px" id="t1"></div><div class="tile" style="left:416px" id="t2"></div><div class="tile" style="left:804px" id="t3"></div>
+<div class="name" style="left:28px">SITAR 22<span>WAVEGUIDE · JAWARI · 13 TARAF</span></div>
+<div class="name" style="left:416px">TABLA 16<span>MODAL · TEENTAAL</span></div>
+<div class="name" style="left:804px">TANPURA 4<span>PA SA SA SA</span></div>
+<div class="ctl" style="left:28px" id="sk"></div><div class="ctl" style="left:416px" id="tk"></div><div class="ctl" style="left:804px" id="nk"></div>
+<div class="strip" id="strip"></div>
+<script>
+const C=getComputedStyle(document.documentElement),V=n=>C.getPropertyValue("--"+n).trim();
+const P=(cx,cy,r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+const poly=(pts,fill,stroke,sw=0)=>`<polygon points="${pts.map(p=>p.map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="${fill}" ${stroke?`stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"`:""}/>`;
+function star(cx,cy,n,ro,ri,fill,stroke,sw,rot=-Math.PI/2){const p=[];for(let i=0;i<n*2;i++)p.push(P(cx,cy,i%2?ri:ro,rot+i*Math.PI/n));return poly(p,fill,stroke,sw);}
+function ngon(cx,cy,n,r,fill,stroke,sw,rot=-Math.PI/2){const p=[];for(let i=0;i<n;i++)p.push(P(cx,cy,r,rot+i*2*Math.PI/n));return poly(p,fill,stroke,sw);}
+// kite petal pointing outward at angle a
+function kite(cx,cy,a,r0,r1,w,fill,stroke,sw){const m=(r0+r1)/2;return poly([P(cx,cy,r0,a),P(cx,cy,m*0.9,a-w),P(cx,cy,r1,a),P(cx,cy,m*0.9,a+w)],fill,stroke,sw);}
+// little faceted gem (pink/red triangles) like the covers' jewels
+function gem(x,y,s,a){const t=[P(x,y,s,a),P(x,y,s,a+2.1),P(x,y,s,a-2.1)];return poly(t,V("white"),V("gold"),1.2)+poly([t[0],[x,y],t[1]],V("mag"))+poly([t[0],[x,y],t[2]],V("pink"))+poly([t[1],[x,y],t[2]],V("coral"));}
+
+// SITAR: 22-point shruti star, raga shrutis are long gold rays tipped with gems
+function sitar(){const c=184;let s=`<svg width="368" height="368">`;
+ SHRUTI.forEach(([n,r,cents],i)=>{const a=cents/1200*Math.PI*2-Math.PI/2,on=YAMAN.has(i);
+  s+=kite(c,c,a,58,on?168:120,on?.075:.06,on?V("white"):V("white"),V("gold"),3);
+  if(on)s+=gem(...P(c,c,140,a),11,a);});
+ s+=star(c,c,22,74,56,V("orange"),V("gold"),3);
+ s+=star(c,c,11,54,30,V("coral"));
+ s+=ngon(c,c,22,30,V("red"));
+ for(let i=0;i<22;i++)s+=kite(c,c,i/22*Math.PI*2,8,28,.12,V("pink"));
+ s+=`<circle cx="${c}" cy="${c}" r="5" fill="${V("white")}"/>`;
+ return s+"</svg>";}
+// TABLA: 16-gon teentaal with numbered matras (X sam, 0 khali), red/white facets inside
+function tabla(){const c=184,R=150;let s=`<svg width="368" height="368">`;
+ s+=ngon(c,c,16,R+6,V("gold"));s+=ngon(c,c,16,R,V("white"));
+ for(let i=0;i<16;i++){const a0=-Math.PI/2+i*Math.PI/8,a1=a0+Math.PI/8;
+  s+=poly([P(c,c,R,a0),P(c,c,R,a1),P(c,c,R*0.55,(a0+a1)/2)],i<4||(i>=8&&i<12)?V("red"):"#e43a2c");}
+ // dayan inner: harmonic rings
+ s+=ngon(c,c,3,R*0.86,V("white"),null,0,-Math.PI/2);
+ s+=star(c,c,8,62,44,V("orange"),V("gold"),2.5);s+=`<circle cx="${c}" cy="${c}" r="36" fill="${V("tile")}" stroke="${V("gold")}" stroke-width="3"/>`;
+ s+=`<circle cx="${c}" cy="${c}" r="28" fill="#141414"/>`; // syahi
+ for(let i=0;i<16;i++){const a=-Math.PI/2+i*Math.PI/8,[x,y]=P(c,c,R-12,a),lbl=i==0?"X":i==8?"0":i+1;
+  s+=`<circle cx="${x}" cy="${y}" r="${i%4?7:9}" fill="${V("white")}" stroke="${i%4?V("gold"):V("mag")}" stroke-width="1.4"/><text x="${x}" y="${y+3.4}" text-anchor="middle" font-size="${i%4?8:9}" font-weight="700" fill="#111" font-family="Helvetica">${lbl}</text>`;
+  if(i%4==0)s+=gem(...P(c,c,R+16,a),9,a);}
+ return s+"</svg>";}
+// TANPURA: 4-fold flower; each petal = one string, brightest = now sounding; ring of jawari harmonic sparks
+function tanpura(){const c=184;let s=`<svg width="368" height="368">`;
+ s+=`<circle cx="${c}" cy="${c}" r="160" fill="none" stroke="${V("gold")}" stroke-width="10"/>`;
+ for(let i=0;i<32;i++){const a=i/32*Math.PI*2;s+=kite(c,c,a,120,156,.07,i%2?V("brown"):V("gold"));}
+ for(let i=0;i<4;i++){const a=-Math.PI/2+i*Math.PI/2,on=i==1;
+  s+=kite(c,c,a,30,128,.42,on?V("orange"):V("white"),V("gold"),3);
+  s+=kite(c,c,a,48,108,.22,on?V("coral"):V("pink"));
+  s+=kite(c,c,a+Math.PI/4,30,96,.25,V("white"),V("gold"),2.5);
+  const [x,y]=P(c,c,84,a);s+=`<text x="${x}" y="${y+5}" text-anchor="middle" font-size="14" font-weight="800" fill="${on?V("white"):"#111"}" font-family="Helvetica">${["PA","SA","SA","sa"][i]}</text>`;}
+ s+=star(c,c,12,30,18,V("red"),V("gold"),2);s+=`<circle cx="${c}" cy="${c}" r="9" fill="${V("white")}"/>`;
+ return s+"</svg>";}
+t1.innerHTML=sitar();t2.innerHTML=tabla();t3.innerHTML=tanpura();
+// knob = small star: gold spikes light up to show value
+function sknob(v){const c=24,n=16;let s=`<svg width="48" height="48">`;
+ for(let i=0;i<n;i++){const t=i/(n-1),a=Math.PI*.75+t*Math.PI*1.5,on=t<=v+1e-6;
+  s+=kite(c,c,a,13,on?23:19,.13,on?V("gold2"):"#22424d");}
+ s+=ngon(c,c,8,12,V("white"),V("gold"),1.5);const [x,y]=P(c,c,9,Math.PI*.75+v*Math.PI*1.5);
+ s+=`<line x1="${c}" y1="${c}" x2="${x}" y2="${y}" stroke="${V("red")}" stroke-width="2.6" stroke-linecap="round"/>`;
+ return s+"</svg>";}
+const K=(id,l)=>document.getElementById(id).innerHTML=l.map(([n,v,t])=>`<div class="k">${sknob(v)}<br>${n}<i>${t}</i></div>`).join("");
+K("sk",[["MIZRAB",.62,"wire"],["JAWARI",.71,"bridge"],["MEEND",.5,"±7"],["TARAF",.58,"-9 dB"],["CHIKARI",.4,"-14"],["GOURD",.66,"body"],["GAMAK",.3,"5 Hz"],["DECAY",.74,"6.2 s"],["PLUCK",.22,"1/9"],["DAMP",.45,"0.45"],["ROOM",.35,"18%"],["LEVEL",.8,"-3 dB"]]);
+K("tk",[["DAYAN",.5,"= SA"],["BAYAN",.44,"press"],["SYAHI",.6,"load"],["GLIDE",.55,"AT"],["GAJRA",.4,"tension"],["LEVEL",.75,"-4 dB"],["SNAP",.35,"rim"],["ROOM",.3,"12%"]]);
+K("nk",[["CYCLE",.42,"58 bpm"],["JAWARI",.8,"thread"],["1ST STR",.0,"PA"],["HUMAN",.5,"12 ms"],["WIDTH",.6,"60%"],["LEVEL",.6,"-8 dB"]]);
+// bottom: raga keymap as a row of small gems per swara
+let st=`<svg width="1144" height="62">`;const sw=[...YAMAN];for(let o=0;o<3;o++)sw.forEach((i,j)=>{const x=36+(o*7+j)*52.5;
+ st+=gem(x,24,j==0?13:10,-Math.PI/2)+`<text x="${x}" y="54" text-anchor="middle" font-size="10" font-weight="700" fill="${j==0?V("white"):"#9fb3ba"}" font-family="Helvetica">${SHRUTI[i][0].toUpperCase()} ${SHRUTI[i][1]}</text>`;});
+strip.innerHTML=st+"</svg>";
+</script></body></html>

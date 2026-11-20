@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:#e9dfcb}
+body{font-family:"Copperplate","Baskerville",serif;color:#1f2f5c}
+.cloth{position:absolute;inset:0;background:#ebe1cc}
+.cloth:after{content:"";position:absolute;inset:0;filter:url(#weave);opacity:.22;mix-blend-mode:multiply;background:#000}
+.band{position:absolute;left:0;right:0;height:46px;background:#1f2f5c;filter:url(#rough)}
+.band svg{position:absolute;inset:0}
+h1{position:absolute;left:40px;top:62px;margin:0;font-size:46px;letter-spacing:10px;font-weight:normal;filter:url(#rough)}
+h1 small{font-family:"Devanagari Sangam MN";font-size:24px;letter-spacing:2px;color:#a8432b}
+.tags{position:absolute;right:40px;top:76px;display:flex;gap:10px;font-size:15px}
+.tag{border:2px solid #1f2f5c;padding:5px 12px;filter:url(#rough)}.tag b{color:#a8432b;font-weight:normal}
+.col{position:absolute;top:136px;bottom:62px;padding:0 6px}
+.col h2{font-weight:normal;font-size:24px;letter-spacing:6px;margin:0 0 4px;color:#a8432b;filter:url(#rough)}
+.col h2 span{font-family:"Devanagari Sangam MN";font-size:15px;color:#1f2f5c;margin-left:8px}
+.rule{height:10px;margin:2px 0 10px;background:radial-gradient(circle,#1f2f5c 2.4px,transparent 3px) 0 0/12px 10px;filter:url(#rough)}
+.knobs{display:flex;flex-wrap:wrap;gap:6px 8px}
+.k{width:66px;text-align:center;font-size:11px;letter-spacing:1px}.k i{display:block;font-style:normal;color:#a8432b;font-family:Baskerville;font-size:11px;letter-spacing:0}
+.vr{position:absolute;top:140px;bottom:70px;width:3px;background:repeating-linear-gradient(#1f2f5c 0 8px,transparent 8px 13px);filter:url(#rough)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute">
+ <filter id="weave"><feTurbulence type="turbulence" baseFrequency=".9 .7" numOctaves="2"/></filter>
+ <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6"/></filter>
+</svg>
+<div class="cloth"></div>
+<div class="band" style="top:0" id="b1"></div><div class="band" style="bottom:0" id="b2"></div>
+<h1>TANTRI <small>तन्त्री</small></h1>
+<div class="tags"><div class="tag">SA <b>138.59</b></div><div class="tag">RAGA <b>Yaman</b></div><div class="tag">SHRUTI <b>just · 22</b></div></div>
+<div class="col" style="left:34px;width:420px"><h2>SITAR<span>सितार</span></h2><div class="rule"></div>
+ <div style="filter:url(#rough)"><svg width="420" height="90" id="str"></svg></div><div class="knobs" id="sk"></div><div id="taraf"></div></div>
+<div class="vr" style="left:476px"></div>
+<div class="col" style="left:496px;width:330px"><h2>TABLA<span>तबला</span></h2><div class="rule"></div>
+ <div style="display:flex;gap:10px;filter:url(#rough)" id="drums"></div><div class="knobs" id="tk" style="margin-top:6px"></div><div id="bols"></div></div>
+<div class="vr" style="left:848px"></div>
+<div class="col" style="left:868px;width:300px"><h2>TANPURA<span>तानपूरा</span></h2><div class="rule"></div>
+ <div style="filter:url(#rough)" id="tstr"></div><div class="knobs" id="nk"></div></div>
+<script>
+// paisley-ish boteh stamp row for the bands
+const boteh=(x)=>`<g transform="translate(${x},23)"><path d="M0,10 C-12,8 -12,-12 4,-14 C14,-14 12,-2 6,0 C2,2 6,8 0,10Z" fill="#ebe1cc"/><circle cx="3" cy="-6" r="2.5" fill="#1f2f5c"/><circle cx="16" cy="6" r="2" fill="#ebe1cc"/></g>`;
+let band=`<svg width="1200" height="46">`;for(let x=20;x<1200;x+=40)band+=boteh(x);band+="</svg>";
+b1.innerHTML=band;b2.innerHTML=band;
+const st={body:"#1f2f5c",track:"#1f2f5c55",fill:"#a8432b",pointer:"#ebe1cc",size:50,inset:8,w:3.2};
+const K=(id,l)=>document.getElementById(id).innerHTML=l.map(([n,v,t])=>`<div class="k"><span style="display:inline-block;filter:url(#rough)">${knob(v,st)}</span><br>${n}<i>${t}</i></div>`).join("");
+str.innerHTML=stringWave(420,90,"#1f2f5c",1.5)+`<g opacity=".5">${stringWave(420,90,"#a8432b",2.6)}</g>`;
+K("sk",[["MIZRAB",.62,"wire pick"],["JAWARI",.71,"bridge"],["MEEND",.5,"±7 shruti"],["TARAF",.58,"13 str."],["CHIKARI",.4,"Sa' Sa''"],["GOURD",.66,"body"],["GAMAK",.3,"oscill."],["DECAY",.74,"6.2 s"],["PLUCK",.22,"1/9"],["DAMP",.45,"release"],["ROOM",.35,"courtyard"],["LEVEL",.8,"-3 dB"]]);
+taraf.innerHTML=`<div style="margin-top:10px;font-size:12px;letter-spacing:3px;color:#a8432b">TARAF</div>`+tarafRow("#1f2f5c","#a8432b");
+drums.innerHTML=membrane(52,{skin:"#ebe1cc",rim:"#1f2f5c",syahi:"#1f2f5c",mode:"#a8432b"})+membrane(60,{skin:"#ebe1cc",rim:"#a8432b",syahi:"#1f2f5c",mode:"#a8432b",off:14});
+K("tk",[["DAYAN",.5,"= Sa"],["BAYAN",.44,"press"],["SYAHI",.6,"load"],["GLIDE",.55,"aftertouch"],["LEVEL",.75,"-4 dB"]]);
+bols.innerHTML=bolGrid("border:2px solid #1f2f5c;text-align:center;color:#1f2f5c;font-family:Baskerville","#a8432b");
+tstr.innerHTML=tanpuraStrings(300,140,"#1f2f5c","#a8432b","Copperplate");
+K("nk",[["CYCLE",.42,"58 bpm"],["JAWARI",.8,"thread"],["1ST STR",.0,"Pa · Ma · Ni"],["HUMAN",.5,"timing"],["WIDTH",.6,"stereo"],["LEVEL",.6,"-8 dB"]]);
+document.getElementById("nk").insertAdjacentHTML("afterend",`<div style="margin-top:8px;filter:url(#rough)">`+tanpuraCycle("#1f2f5c","#a8432b","Copperplate")+"</div>");
+</script></body></html>

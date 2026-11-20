@@ -1,0 +1,485 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tantri Manual</title>
+<style>
+@page { size: A4; margin: 0; }
+:root { --bg:#0a0c0d; --tile:#0f2128; --edge:#1b3640; --gold:#c9a238; --gold2:#e2bf55; --white:#f3f1ec; --grey:#9fb3ba; --dim:#7f959c;
+        --orange:#ef8a2e; --coral:#ec5f55; --red:#c3261f; --pink:#f2a9c2; --mag:#e2316b; --violet:#5a3d5c; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--white); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; padding: 16mm 16mm 14mm; position: relative; page-break-after: always; overflow: hidden; background: var(--bg); }
+.page:last-child { page-break-after: auto; }
+.foot { position: absolute; bottom: 8mm; left: 16mm; right: 16mm; display: flex; justify-content: space-between; font-size: 8pt; font-weight: 700; color: var(--dim); letter-spacing: .6px; }
+h1 { font-size: 40pt; font-weight: 800; margin: 0; letter-spacing: 1px; }
+h2 { font-size: 19pt; font-weight: 800; margin: 0 0 3mm; letter-spacing: .4px; }
+h2 span { color: var(--grey); font-size: 10pt; font-weight: 700; margin-left: 6px; letter-spacing: .6px; }
+h3 { font-size: 10.5pt; font-weight: 800; margin: 5mm 0 1.5mm; color: var(--gold2); letter-spacing: .8px; text-transform: uppercase; }
+p, li { font-size: 9.6pt; line-height: 1.5; color: #dfe5e6; margin: 0 0 2.4mm; }
+li { margin-bottom: 1mm; }
+ul { padding-left: 5mm; margin: 0 0 2mm; }
+b { color: var(--white); }
+em { color: var(--gold2); font-style: normal; font-weight: 700; }
+code, .mono { font-family: Menlo, monospace; font-size: 8.6pt; color: var(--gold2); }
+.rule { height: 2px; background: var(--gold); margin: 3mm 0 4mm; width: 28mm; }
+table { width: 100%; border-collapse: collapse; font-size: 8.6pt; margin: 1mm 0 3mm; }
+th { text-align: left; color: var(--grey); font-weight: 800; letter-spacing: .5px; padding: 1.4mm 2mm; border-bottom: 1.5px solid var(--gold); font-size: 8pt; }
+td { padding: 1.2mm 2mm; border-bottom: 1px solid var(--edge); color: #dfe5e6; vertical-align: top; }
+td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
+.fig { background: var(--tile); border: 1px solid var(--edge); padding: 3mm; margin: 2mm 0 1.5mm; }
+.fig img { width: 100%; display: block; }
+.cap { font-size: 8pt; color: var(--grey); font-weight: 700; letter-spacing: .3px; margin: 0 0 3mm; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 7mm; }
+.cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+.note { border-left: 3px solid var(--gold); padding: 1mm 0 1mm 4mm; margin: 2mm 0 3mm; }
+.eq { font-family: Menlo, monospace; font-size: 9pt; color: var(--white); background: var(--tile); border: 1px solid var(--edge); padding: 2.5mm 3.5mm; margin: 1.5mm 0 3mm; line-height: 1.6; }
+.cover { display: flex; flex-direction: column; }
+.toc td { font-size: 9.6pt; }
+.ref td.k { white-space: normal; width: 52%; }
+.tight p, .tight li { font-size: 8.8pt; line-height: 1.42; margin-bottom: 1.8mm; }
+.tight h3 { margin-top: 3.5mm; }
+.tight .eq { font-size: 8.2pt; padding: 2mm 3mm; }
+</style></head>
+<body>
+
+<!-- 1 cover -->
+<div class="page cover">
+  <div style="display:flex; align-items:center; gap:7mm; margin-top:6mm">
+    <img src="img/icon.png" style="width:30mm">
+    <div><h1>TANTRI</h1><div style="color:var(--grey); font-weight:700; font-size:12pt; letter-spacing:1px">SITAR · TABLA · TANPURA — PHYSICALLY MODELLED, IN JUST SHRUTI TUNING</div></div>
+  </div>
+  <div class="rule" style="margin-top:8mm"></div>
+  <div class="fig" style="margin-top:4mm"><img src="img/ui.png"></div>
+  <p class="cap">THE TANTRI WINDOW: THE 22-SHRUTI STAR, THE TEENTAAL CYCLE AND THE TANPURA FLOWER ON TOP, THE VORTEX SPECTROGRAM BELOW, CONTROLS AND THE RAGA STRIP AT THE BOTTOM.</p>
+  <p style="margin-top:3mm">Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a just ratio taken from the 22 shrutis and shaped by the raga.</p>
+  <div class="foot"><span>TANTRI 1.0 · MANUAL</span><span>VST3 · AU · VST2 · STANDALONE · MACOS</span></div>
+</div>
+
+<!-- 2 contents + quick start -->
+<div class="page">
+  <h2>CONTENTS</h2><div class="rule"></div>
+  <table class="toc">
+    <tr><td class="k">1</td><td>Quick start and MIDI map</td><td style="text-align:right">2</td></tr>
+    <tr><td class="k">2</td><td>Tuning: Sa, the 22 shrutis, ragas, the shruti star</td><td style="text-align:right">3</td></tr>
+    <tr><td class="k">3</td><td>Sitar: playing, meend, gamak, taraf, chikari</td><td style="text-align:right">4</td></tr>
+    <tr><td class="k">4</td><td>Tabla: bols and strokes</td><td style="text-align:right">5</td></tr>
+    <tr><td class="k">5</td><td>Tanpura: the drone</td><td style="text-align:right">6</td></tr>
+    <tr><td class="k">6</td><td>How the strings work: waveguides and the jawari bridge</td><td style="text-align:right">7</td></tr>
+    <tr><td class="k">7</td><td>How the tabla works: modal synthesis</td><td style="text-align:right">8–9</td></tr>
+    <tr><td class="k">8</td><td>The vortex spectrogram and the output stage</td><td style="text-align:right">10</td></tr>
+    <tr><td class="k">9</td><td>Parameter reference</td><td style="text-align:right">11</td></tr>
+  </table>
+
+  <h2 style="margin-top:8mm">1 · QUICK START</h2><div class="rule"></div>
+  <ul>
+    <li>Load <b>Tantri</b> as an instrument (AU, VST3 or VST2), or open <b>Tantri.app</b>. The tanpura starts droning straight away. Click the centre of the tanpura flower to stop or start it.</li>
+    <li>Play from <b>middle C (MIDI 60)</b> upwards. That key is <em>madhya Sa</em>, and every key after it is the next of the twelve swaras, tuned to the raga's shruti.</li>
+    <li>The octave <b>36–47</b> plays tabla bols, and the keys <b>below 36</b> strike the sitar's chikari strings. Tabla also answers on <b>MIDI channel 10</b> across its whole range.</li>
+    <li>Choose a raga from <b>RAGA</b> in the header. The shruti star, the taraf strings, the tanpura's first string and the raga strip all follow it.</li>
+    <li>Pitch-bend is <em>meend</em>. Aftertouch pulls a note toward the next swara of the raga, and the mod wheel adds <em>gamak</em>.</li>
+  </ul>
+
+  <h3>MIDI map</h3>
+  <table>
+    <tr><th>INPUT</th><th>SITAR CHANNEL (DEFAULT: ANY)</th><th>TABLA CHANNEL (DEFAULT 10)</th></tr>
+    <tr><td class="k">Note ≥ Sa key − 12</td><td>sitar note: swara = (note − Sa key) mod 12, octave from the distance</td><td rowspan="2">every note plays a bol: note mod 12 → Ge Ke Ghe Na Tin Tun Te Re Dha Dhin Tit Kat</td></tr>
+    <tr><td class="k">Note in [Sa−24, Sa−13]</td><td>tabla bol (split on), same order as channel 10</td></tr>
+    <tr><td class="k">Note &lt; Sa − 24</td><td>chikari strike</td><td></td></tr>
+    <tr><td class="k">Velocity</td><td>mizrab force: louder, brighter, more jawari</td><td>stroke force: shorter contact, brighter</td></tr>
+    <tr><td class="k">Pitch-bend</td><td>meend, ± MEEND cents, continuous (not quantised)</td><td>—</td></tr>
+    <tr><td class="k">Poly aftertouch</td><td>that note glides toward the next raga swara</td><td>bayan pressure (pitch rises)</td></tr>
+    <tr><td class="k">Channel pressure</td><td>all held notes glide toward their next swara</td><td>bayan pressure</td></tr>
+    <tr><td class="k">CC1 mod wheel</td><td>gamak depth (oscillation toward the next swara)</td><td>bayan pressure</td></tr>
+    <tr><td class="k">Tanpura channel (16)</td><td colspan="2">while any note is held, the tanpura plays, even when it is switched off</td></tr>
+  </table>
+  <p>Set the channels, the split and the Sa key from <b>MIDI</b> in the header. Tantri is a 12-voice polyphonic sitar. If a key is played again while its string is still ringing, it re-plucks the same string instead of starting a new one, as on the real instrument.</p>
+  <div class="foot"><span>TANTRI MANUAL</span><span>2</span></div>
+</div>
+
+<!-- 3 tuning -->
+<div class="page">
+  <h2>2 · TUNING <span>NOTHING IS 12-TET</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <p><b>Sa</b> is set in hertz (header: drag, or double-click to type). The default 138.59 Hz is a typical sitar Sa. There is no A = 440 anywhere in Tantri. Every other pitch is <b>Sa × ratio × 2<sup>octave</sup></b>.</p>
+      <p>The ratios come from the classical system of <em>22 shrutis</em>, the smallest intervals of Indian theory, written here in just intonation. They group into twelve <b>swaras</b>. Sa and Pa are fixed. Each of the other ten has two shruti candidates, such as Re = 10/9 or 9/8, and the raga decides which one is sung.</p>
+      <h3>The shruti star</h3>
+      <p>The sitar tile draws all 22 shrutis around a circle at their true cents positions, so you can see the unevenness of just intonation. The shruti chosen for each raga swara is a long gold-rimmed blade with a jewel. A small inner jewel marks an <em>andolan</em> swara, which is sung with a slow sway.</p>
+      <ul>
+        <li><b>Click a short blade</b> to use that shruti for its swara and add the swara to the raga.</li>
+        <li><b>Click a long blade</b> to remove that swara from the raga.</li>
+        <li>Hover over a blade to read its swara, ratio and cents. The raga name gains a <b>*</b> once edited; <i>Reload raga</i> in the raga menu undoes the edits.</li>
+      </ul>
+      <h3>Raga lock</h3>
+      <p><b>OFF</b> lets all twelve keys sound their swara. <b>SNAP</b> moves keys outside the raga to the nearest raga swara, preferring the one below. <b>MUTE</b> silences them.</p>
+    </div>
+    <div>
+      <div class="fig" style="padding:2mm"><svg id="shrutiFig" viewBox="0 0 400 400" width="100%"></svg></div>
+      <p class="cap">THE 22 SHRUTIS AT THEIR CENTS POSITIONS. GOLD = THE SHRUTIS OF RAGA YAMAN.</p>
+      <table id="shrutiTable"><tr><th>SWARA</th><th>CANDIDATES (RATIO · CENTS)</th></tr></table>
+    </div>
+  </div>
+  <h3>Ragas included</h3>
+  <p style="font-size:8.8pt">Yaman · Bhairav · Bhairavi · Todi · Kafi · Khamaj · Bilawal · Asavari · Marwa · Purvi · Darbari Kanada · Malkauns · Bhupali · Durga · Desh · Bageshri · Puriya Dhanashri · Shree · Bihag · Jog · Kirwani · Chandrakauns · Hamsadhwani · Megh · Sarva (all twelve). Each one sets the shruti of every swara (for example the <em>ati-komal</em> 256/243 re and 128/81 dha of Bhairav and Todi) and marks its andolan swaras (re and dha in Bhairav, ga and dha in Darbari).</p>
+  <div class="foot"><span>TANTRI MANUAL</span><span>3</span></div>
+</div>
+
+<!-- 4 sitar -->
+<div class="page">
+  <h2>3 · SITAR <span>WAVEGUIDE · JAWARI · 13 TARAF · 2 CHIKARI</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <p>Each note is a physically modelled steel string, made of two vibration planes (polarisations) that beat against each other slightly. The string passes over a curved bridge, the <em>jawari</em>, which gives the sitar its buzzing, shimmering tone. The plectrum (<em>mizrab</em>) alternates <i>da</i> and <i>ra</i> strokes, so consecutive notes start with opposite polarity, as a player's alternating strokes do.</p>
+      <h3>Meend, gamak, andolan</h3>
+      <ul>
+        <li><b>Meend</b>: pitch-bend slides the string continuously up to ±MEEND cents. It is never quantised.</li>
+        <li><b>Pressure</b> (poly or channel aftertouch) pulls a note toward the <em>next swara of the raga</em>, so a full press lands exactly on that swara's shruti. This is the classic sitar meend made by pulling the string across the fret.</li>
+        <li><b>Gamak</b>: the mod wheel adds a fast oscillation that also reaches toward the next swara (rate ≈ 5.5 Hz). The GAMAK knob sets its depth.</li>
+        <li><b>Andolan</b>: swaras the raga marks for andolan sway slowly by themselves (≈ 0.7 Hz). The GAMAK knob also sets this depth.</li>
+      </ul>
+      <h3>Taraf and chikari</h3>
+      <p>Thirteen <em>taraf</em> (sympathetic) strings sit under the main strings, tuned to the raga's swaras from the one below upper Sa upward. Nobody plucks them. They ring when a played note shares their pitch or a partial, which produces the halo around the raga's own notes. Two <em>chikari</em> drone strings (upper Sa and the Sa above it) ring sympathetically as well, and keys below the tabla zone strike them for rhythmic jhala.</p>
+    </div>
+    <div>
+      <table>
+        <tr><th>CONTROL</th><th>WHAT IT DOES</th></tr>
+        <tr><td class="k">MIZRAB</td><td>Plectrum hardness: narrower strike, brighter string, more noise at the attack</td></tr>
+        <tr><td class="k">JAWARI</td><td>How open the bridge is: how strongly the string wraps onto its curve. 0 sounds like a guitar; high values give the full buzzing sitar tone</td></tr>
+        <tr><td class="k">MEEND</td><td>Pitch-bend range in cents (also in the header)</td></tr>
+        <tr><td class="k">TARAF</td><td>Level of the 13 sympathetic strings</td></tr>
+        <tr><td class="k">CHIKARI</td><td>Level of the two drone strings</td></tr>
+        <tr><td class="k">GOURD</td><td>Amount of the 14-mode body resonance (tumba gourd, tabli soundboard and neck)</td></tr>
+        <tr><td class="k">GAMAK</td><td>Mod-wheel gamak depth and andolan depth</td></tr>
+        <tr><td class="k">DECAY</td><td>T60 of a held note at Sa; higher notes decay a little faster</td></tr>
+        <tr><td class="k">PLUCK</td><td>Where the mizrab strikes, as a fraction of the length from the bridge</td></tr>
+        <tr><td class="k">DAMP</td><td>T60 after note-off. Sitarists rarely damp, so long values are the most authentic</td></tr>
+        <tr><td class="k">ROOM / LEVEL</td><td>Reverb send and level</td></tr>
+      </table>
+      <div class="fig" style="padding:1.5mm"><img src="img/jaw0.png"></div>
+      <div class="fig" style="padding:1.5mm"><img src="img/jaw10.png"></div>
+      <p class="cap">ONE SA, 0–6 KHZ, 6 S. TOP: JAWARI 0, A PLAIN STRING. BOTTOM: JAWARI 100%, WITH DENSE HIGH PARTIALS AND SWEEPING NOTCHES, THE SITAR'S "SWISH".</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>4</span></div>
+</div>
+
+<!-- 5 tabla -->
+<div class="page">
+  <h2>4 · TABLA <span>MODAL · TEENTAAL</span></h2><div class="rule"></div>
+  <p>The tabla is two drums. The <b>dayan</b> (right, wooden) is tuned to Sa or another swara. The <b>bayan</b> (left, metal, bass) is played with the wrist resting on the head, and pressing or sliding the wrist bends its pitch. Each drum is <b>one</b> vibrating head shared by every stroke. A damped stroke such as <i>Te</i> or <i>Ke</i> therefore really mutes whatever is still ringing, and an open stroke adds to it. Chapter 7 explains how the heads are synthesised.</p>
+  <table>
+    <tr><th>KEY</th><th>BOL</th><th>DRUM</th><th>HOW IT IS PLAYED, AND WHAT THE MODEL DOES</th></tr>
+    <tr><td class="k">C</td><td class="k">GE</td><td>bayan</td><td>fingertips on the maidan near the edge, open. Long boom; pitch set by BAYAN + PRESS</td></tr>
+    <tr><td class="k">C♯</td><td class="k">KE</td><td>bayan</td><td>flat palm, stays on the head. All modes damped to ~30 ms, plus a low slap</td></tr>
+    <tr><td class="k">D</td><td class="k">GHE</td><td>bayan</td><td>Ge, then the wrist slides forward: the pitch rises over ~120 ms and settles back (GLIDE)</td></tr>
+    <tr><td class="k">D♯</td><td class="k">NA</td><td>dayan</td><td>index finger on the rim (kinar) while the ring finger rests on the head. The fundamental is damped and harmonics 2–5 ring</td></tr>
+    <tr><td class="k">E</td><td class="k">TIN</td><td>dayan</td><td>index finger at the edge of the syahi, open. Bright and ringing</td></tr>
+    <tr><td class="k">F</td><td class="k">TUN</td><td>dayan</td><td>finger on the centre of the syahi, open. Strong fundamental, long sustain</td></tr>
+    <tr><td class="k">F♯</td><td class="k">TE</td><td>dayan</td><td>three fingers flat on the syahi, left there. Dead and dry</td></tr>
+    <tr><td class="k">G</td><td class="k">RE</td><td>dayan</td><td>index finger flat on the syahi, damped</td></tr>
+    <tr><td class="k">G♯</td><td class="k">DHA</td><td>both</td><td>Na + Ge together</td></tr>
+    <tr><td class="k">A</td><td class="k">DHIN</td><td>both</td><td>Tin + Ge together</td></tr>
+    <tr><td class="k">A♯</td><td class="k">TIT</td><td>dayan</td><td>Te then Re, 45 ms apart</td></tr>
+    <tr><td class="k">B</td><td class="k">KAT</td><td>bayan</td><td>sharper closed slap</td></tr>
+  </table>
+  <div class="cols">
+    <div>
+      <h3>Controls</h3>
+      <table>
+        <tr><td class="k">DAYAN</td><td>tuned to Sa, Pa, Ma, Ni (the raga's shrutis) or upper Sa</td></tr>
+        <tr><td class="k">BAYAN</td><td>resting pitch of the bass drum, 60–160 Hz</td></tr>
+        <tr><td class="k">SYAHI</td><td>0 = a plain, inharmonic membrane; 100% = the loaded, harmonic tabla head (see chapter 7)</td></tr>
+        <tr><td class="k">GLIDE</td><td>how far Ghe's wrist slide raises the pitch</td></tr>
+        <tr><td class="k">PRESS</td><td>constant wrist pressure on the bayan</td></tr>
+        <tr><td class="k">RING</td><td>scales every mode's decay time</td></tr>
+        <tr><td class="k">SNAP</td><td>finger-impact noise at the start of each stroke</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>The teentaal ring</h3>
+      <p>The tabla tile is a 16-sided teentaal cycle: X marks sam (the first beat), 2 and 3 the other tali beats, 0 khali (the "empty" beat). When the host transport runs, the lit matra follows the host's beat, so four bars of 4/4 make one cycle. When it is stopped, the ring advances one matra per stroke. The black syahi in the centre shows the last bol played.</p>
+      <p>The theka (basic pattern) of teentaal is <span class="mono">Dha Dhin Dhin Dha | Dha Dhin Dhin Dha | Dha Tin Tin Na | Na Dhin Dhin Dha</span>, which on channel 10 is G♯ A A G♯ … E E D♯ D♯ … .</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>5</span></div>
+</div>
+
+<!-- 6 tanpura -->
+<div class="page">
+  <h2>5 · TANPURA <span>PA SA SA SA</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <p>The tanpura is the classic four-string drone, plucked in an endless cycle: <b>first string – Sa – Sa – kharaj sa</b> (the low Sa an octave below), followed by a pause that lets the sound bloom. The two middle Sa strings are tuned a cent apart so that they beat gently, as two real strings do. Each string drifts very slowly within about ±1 cent, so the drone never sounds frozen.</p>
+      <p>Each string is the same jawari string model as the sitar, with two polarisations. Its bridge is the wide, flat tanpura bridge, opened by a <em>cotton thread</em> (also called jawari). That is where the slow "swirl" of harmonics rising and falling through each note comes from.</p>
+      <h3>First string</h3>
+      <p><b>AUTO</b> picks Pa if the raga has Pa, otherwise Ma, otherwise Ni, the way a musician retunes the first string for ragas such as Marwa or Malkauns. You can also force Pa, Ma, Ni or komal ni. Click the top petal of the flower to step through the choices. Its pitch is always the raga's own shruti.</p>
+      <h3>The flower</h3>
+      <p>Each petal is one string and lights up while it sounds. The ring of gold and brown blades around the flower moves with the drone. Click the centre to start or stop it.</p>
+    </div>
+    <div>
+      <table>
+        <tr><th>CONTROL</th><th>WHAT IT DOES</th></tr>
+        <tr><td class="k">CYCLE</td><td>pluck tempo (plucks per minute); the pause after kharaj sa is two plucks long</td></tr>
+        <tr><td class="k">JAWARI</td><td>thread position: how much the strings buzz and swirl</td></tr>
+        <tr><td class="k">1ST STR</td><td>Auto · Pa · Ma · Ni · ni</td></tr>
+        <tr><td class="k">REGISTER</td><td>low, middle or high: the octave of the tanpura's Sa relative to the sitar's Sa</td></tr>
+        <tr><td class="k">HUMAN</td><td>timing and force variation of the plucking hand</td></tr>
+        <tr><td class="k">WIDTH</td><td>stereo spread of the four strings</td></tr>
+        <tr><td class="k">ROOM / LEVEL</td><td>reverb send and level</td></tr>
+      </table>
+      <div class="fig"><img src="img/tiles.png" style="width:100%; object-fit:cover; object-position:right; height:48mm"></div>
+      <p class="cap">THE THREE TILES. RIGHT: THE TANPURA FLOWER WITH THE SOUNDING STRINGS LIT.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>6</span></div>
+</div>
+
+<!-- 7 waveguide -->
+<div class="page tight">
+  <h2>6 · HOW THE STRINGS WORK <span>DIGITAL WAVEGUIDES</span></h2><div class="rule"></div>
+  <p>A plucked string carries two waves that travel in opposite directions and reflect, inverted, at the nut and at the bridge. A <b>digital waveguide</b> stores those two waves in two delay lines ("rails"). Their sum at any point is the string's displacement there. The time a wave takes to go round, nut → bridge → nut, is one period, so the loop length sets the pitch. That is why Tantri's pitches can be any ratio at all: the delay is fractional, and the loop is simply set to exactly <span class="mono">sample rate ÷ (Sa × ratio)</span> samples.</p>
+  <div class="fig" style="padding:1.5mm 3mm"><svg id="wgFig" viewBox="0 20 760 225" width="100%"></svg></div>
+  <p class="cap">ONE SITAR STRING. EVERYTHING IN THE LOOP RUNS AT TWICE THE HOST SAMPLE RATE.</p>
+  <div class="cols">
+    <div>
+      <h3>Nut: fretting and meend</h3>
+      <p>The nut end is a <b>variable fractional delay</b> with 4-point Lagrange interpolation. Fretting, meend, gamak and andolan move only this delay, smoothly, so a meend slides the pitch and never re-plucks. The rail lengths are fixed when a note starts, with headroom for the largest bend.</p>
+      <h3>Bridge: the jawari</h3>
+      <p>On a sitar the string does not end at one point. It lies along a gently curved bone bridge. As the string swings down it wraps further onto the curve, and as it swings up it lifts off. The effective string length therefore changes <i>within every period</i>, driven by the string's own motion. This continually throws energy into high partials, and the pattern changes as the note decays: the characteristic sweeping buzz.</p>
+      <p>Tantri models this with a <b>passive nonlinear termination</b> (after Pierce &amp; Van Duyne, 1997). It is a chain of three normalised lattice allpass sections whose coefficient follows how hard the string presses into the bridge:</p>
+      <div class="eq">press = max(0, −y<sub>bridge</sub>)<br>k = k<sub>rest</sub> − (k<sub>rest</sub> − k<sub>min</sub>) · smooth(jawari · press)<br>[y, s'] = [[−k, c], [c, k]] · [x, s],  c = √(1−k²)</div>
+      <p>Each step is a rotation, so the bridge can never <i>add</i> energy, however fast it is modulated. The model is therefore unconditionally stable at any jawari setting. A slow average of the wrap lengthens the nut delay to match, so the settled pitch stays on its shruti (measured within 1.5 cents) while the attack keeps its brief, real sharpness.</p>
+    </div>
+    <div>
+      <h3>Losses</h3>
+      <p>A one-pole low-pass at the bridge removes more energy from high partials than from low ones, as a real string loses energy into the bridge and the air. Its gain is set from DECAY so the fundamental's T60 is exact. A 0.5 Hz DC blocker sits in the loop as well: because the bridge is one-sided it would otherwise build up an offset that a fixed-end string cannot have.</p>
+      <h3>Excitation</h3>
+      <p>The mizrab is a raised-cosine displacement pulse injected at the pluck point, 0.2–0.9 ms wide depending on MIZRAB and velocity, with a little noise for the wire. Narrower pulses contain more high partials, and the pluck point notches out the harmonics that have a node there.</p>
+      <h3>Taraf, chikari, body</h3>
+      <p>The sum of all bridge forces drives 13 single-loop sympathetic strings and the two chikari strings, coupled near their own bridge. Everything then passes through a bank of 14 resonant body modes (98 Hz – 4.3 kHz) for the gourd, soundboard and neck.</p>
+      <h3>Why 2× oversampling</h3>
+      <p>Fractional-delay interpolation low-passes slightly every time a wave passes, and a 138 Hz string passes 138 times a second. At the host rate that would eat the jawari's high partials. At 2× the loss falls above the audible band, and the new partials the bridge creates do not alias.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>7</span></div>
+</div>
+
+<!-- 8 modal 1 -->
+<div class="page">
+  <h2>7 · HOW THE TABLA WORKS <span>MODAL SYNTHESIS</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <h3>What a mode is</h3>
+      <p>Strike a drum and its head does not move in one simple way. Its motion is a sum of <b>modes</b>: fixed vibration patterns, each with its own <b>frequency</b>, its own <b>decay time</b>, and a <b>shape</b> of moving areas separated by still lines (nodes). Whatever you do to the head, its free vibration afterwards is always a mix of the same modes. Only how much of each one gets excited changes.</p>
+      <p><b>Modal synthesis</b> uses exactly that. Each mode becomes one decaying resonator, and a stroke decides how hard each resonator is hit. That gives a small, exact and very controllable drum. Tantri's dayan has 26 resonators and its bayan 17.</p>
+      <h3>Modes of a round head</h3>
+      <p>For an ideal circular membrane, mode (m, n) has <i>m</i> straight nodal diameters and <i>n</i> nodal circles, the outer rim included. Its shape across the radius is a Bessel function, J<sub>m</sub>(z<sub>mn</sub> r), where z<sub>mn</sub> is the n-th zero of J<sub>m</sub>. Its frequency is proportional to that zero:</p>
+      <div class="eq">f<sub>mn</sub> = f<sub>01</sub> · z<sub>mn</sub> / z<sub>01</sub>      z<sub>01</sub> = 2.405, z<sub>11</sub> = 3.832, z<sub>21</sub> = 5.136, z<sub>02</sub> = 5.520 …</div>
+      <p>These ratios (1, 1.59, 2.14, 2.30, 2.65 …) are <b>not harmonic</b>, which is why most drums have no clear pitch.</p>
+    </div>
+    <div>
+      <div class="fig" style="padding:2mm"><svg id="modesFig" viewBox="0 0 360 250" width="100%"></svg></div>
+      <p class="cap">SIX MEMBRANE MODES (m, n). GOLD AND VIOLET MOVE IN OPPOSITE DIRECTIONS; THE DARK LINES ARE NODES, WHICH STAY STILL.</p>
+      <h3>The syahi: Raman's discovery</h3>
+      <p>The tabla's black patch, the <em>syahi</em>, is a thick, heavy paste of iron filings and starch built up in layers at the centre of the head. In 1934 C. V. Raman showed what it does. Loading the centre lowers the modes by different amounts and pulls the first nine modes into <b>five groups at harmonic ratios 1 : 2 : 3 : 4 : 5</b>. That is why the dayan has a clear musical pitch and can be tuned to Sa.</p>
+    </div>
+  </div>
+  <div class="fig" style="padding:2mm"><svg id="raman" viewBox="0 0 760 170" width="100%"></svg></div>
+  <p class="cap">MODE FREQUENCIES (×f₀) OF THE DAYAN. TOP: AN UNLOADED MEMBRANE. BOTTOM: WITH THE SYAHI, GROUPED ON 1–5 × f₀. THE SYAHI KNOB MOVES EVERY MODE CONTINUOUSLY BETWEEN THE TWO.</p>
+  <div class="foot"><span>TANTRI MANUAL</span><span>8</span></div>
+</div>
+
+<!-- 9 modal 2 -->
+<div class="page">
+  <h2>7 · MODAL SYNTHESIS <span>CONTINUED: RESONATORS, STROKES, DAMPING</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <h3>One mode = one rotating phasor</h3>
+      <p>Each mode is a complex one-pole resonator: a point that rotates by the mode's angle every sample and shrinks a little each time.</p>
+      <div class="eq">z[n] = r·e<sup>iω</sup> · z[n−1] + F[n] · w<sub>k</sub><br>ω = 2π f<sub>k</sub> / f<sub>s</sub>     r = exp(−6.91 / (T60<sub>k</sub> · f<sub>s</sub>))<br>out = Σ<sub>k</sub> Im(z<sub>k</sub>)</div>
+      <p>Struck once, it rings as a sine wave that decays in exactly T60 seconds. Because it is a rotation, ω can change on every sample with no clicks and no instability. That is what lets the bayan's pitch bend under the wrist.</p>
+      <h3>The stroke: contact force</h3>
+      <p>A finger is not an instantaneous impulse. It stays on the head for a fraction of a millisecond (a sharp rim stroke) up to several milliseconds (a soft bayan Ge). Tantri drives every mode with a raised-cosine force pulse of unit area, F[n], of that length. A longer contact filters out the high modes, just as a soft strike sounds darker. A harder velocity shortens the contact, so loud strokes are also brighter.</p>
+      <h3>Where you strike: mode weights</h3>
+      <p>A mode is only excited as much as the head <i>moves</i> where you strike it. The weight of mode k is its radial shape at the strike radius, J<sub>m</sub>(z<sub>mn</sub>·r<sub>strike</sub>), normalised. Tun strikes the centre (r ≈ 0.08), so only m = 0 modes respond and the fundamental dominates. Na strikes the rim (r ≈ 0.93), close to a node of the fundamental, so the upper harmonics ring. Each stroke also scales the five harmonic groups and the high group (table on the right).</p>
+      <h3>Damping fingers</h3>
+      <p>What stops a mode is as important as what starts it. Each stroke leaves a set of <b>extra damping times</b> on the head until the next open stroke lifts the fingers. Te leaves three fingers on the syahi, so every mode dies within 30–45 ms. Na leaves the ring finger resting, which kills only the fundamental group (40 ms) and lets the harmonics sing. The effective decay is</p>
+      <div class="eq">1/T60<sub>eff</sub> = 1/T60<sub>mode</sub> + 1/T60<sub>finger</sub></div>
+    </div>
+    <div>
+      <table>
+        <tr><th>STROKE</th><th>CONTACT</th><th>STRIKE r</th><th>EXCITES (h1–h5, high)</th><th>LEAVES DAMPED</th></tr>
+        <tr><td class="k">NA</td><td>0.45 ms</td><td>0.93</td><td>.12 1 .85 .6 .5 .7</td><td>h1 (40 ms)</td></tr>
+        <tr><td class="k">TIN</td><td>0.7 ms</td><td>0.62</td><td>.55 1 .55 .4 .3 .35</td><td>—</td></tr>
+        <tr><td class="k">TUN</td><td>1.4 ms</td><td>0.08</td><td>1 .25 .3 .12 .1 .05</td><td>—</td></tr>
+        <tr><td class="k">TE</td><td>1.8 ms</td><td>0.15</td><td>.8 .35 .4 .25 .2 .4</td><td>all (20–45 ms)</td></tr>
+        <tr><td class="k">RE</td><td>1.1 ms</td><td>0.30</td><td>.6 .5 .45 .3 .3 .45</td><td>all (25–60 ms)</td></tr>
+        <tr><td class="k">GE</td><td>3.0 ms</td><td>0.72</td><td>1 .55 .35 .25 .18 .15</td><td>—</td></tr>
+        <tr><td class="k">KE</td><td>4.0 ms</td><td>0.45</td><td>.6 .45 .35 .3 .25 .3</td><td>all (20–35 ms)</td></tr>
+      </table>
+      <h3>Degenerate pairs</h3>
+      <p>Every mode with m &gt; 0 exists twice, as cosine and sine versions turned 90° apart. On a perfect head they share one frequency. On a real, slightly uneven head they split by a fraction of a percent and <b>beat</b>. Tantri adds the second partner 0.35% (dayan) or 0.6% (bayan) higher, which gives the slow shimmer of a sustained Tun or Ge.</p>
+      <h3>Tension modulation</h3>
+      <p>A hard stroke stretches the head, which raises its tension and briefly sharpens every mode. Tantri follows the drum's own amplitude and raises all mode frequencies slightly while it is loud. The pitch therefore falls a hair as each stroke dies away, which you can hear clearly on a loud Ge.</p>
+      <h3>The bayan's wrist</h3>
+      <p>Pressing the heel of the hand into the bayan raises the tension, so the pitch multiplier becomes 1 + 0.55 · pressure, applied to every mode. Pressure is the sum of PRESS, aftertouch, the mod wheel, and Ghe's automatic slide (up in 120 ms, back in 0.9 s).</p>
+      <div class="fig" style="padding:2mm"><svg id="irFig" viewBox="0 0 360 120" width="100%"></svg></div>
+      <p class="cap">TUN VERSUS NA ON THE SAME HEAD: TUN IS DOMINATED BY THE FUNDAMENTAL; NA HAS ITS FUNDAMENTAL DAMPED, SO THE HARMONICS RING.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>9</span></div>
+</div>
+
+<!-- 10 vortex + output -->
+<div class="page">
+  <h2>8 · THE VORTEX <span>A SPECTROGRAM YOU CAN READ AS PARTIALS</span></h2><div class="rule"></div>
+  <div class="fig"><img src="img/vortex.png"></div>
+  <p class="cap">THE VORTEX DURING A YAMAN ALAP WITH TABLA.</p>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Rings are partials.</b> Distance from the eye is log frequency, from 45 Hz at the centre to 12 kHz at the rim. Every harmonic of every sounding string draws its own ring, so a sitar note is a set of concentric gold rings, and a meend bends them in or out.</li>
+        <li><b>Arms are time.</b> Each new spectrum (30 per second) is laid down at a write-head that turns around the disc. A radial twist curls the history into three spiral arms, each holding the last few seconds. Older spectra darken, which carves the black gaps between the arms.</li>
+        <li><b>Brightness is level.</b> Violet is quiet, copper and gold are strong, cream is the loudest. The range follows the loudest recent partial, so soft playing still shows its structure.</li>
+      </ul>
+    </div>
+    <div>
+      <p>The jawari is easy to see here. A buzzing note keeps its outer rings lit long after a plain string would have gone dark. The tanpura's swirl shows up as rings glowing and fading in waves, and a damped tabla stroke is a short bright flash that the next arm swallows.</p>
+    </div>
+  </div>
+  <h2 style="margin-top:6mm">OUTPUT STAGE <span>NO CLIPPING</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <p>The instruments are balanced so that normal playing never reaches the limit. These are measured peaks at the default settings:</p>
+      <table>
+        <tr><th>MATERIAL</th><th>PEAK</th></tr>
+        <tr><td>sitar alap</td><td>−7.4 dBFS</td></tr>
+        <tr><td>sitar six-note chord, velocity 127</td><td>−5.0 dBFS</td></tr>
+        <tr><td>tabla teentaal</td><td>−4.5 dBFS</td></tr>
+        <tr><td>tanpura</td><td>−10.9 dBFS</td></tr>
+        <tr><td>all three together</td><td>−2.8 dBFS</td></tr>
+      </table>
+    </div>
+    <div>
+      <p>After the mix sits a stereo-linked <b>look-ahead peak limiter</b> with a −1 dBFS ceiling. It watches the next 1.5 ms of audio and reaches the gain needed for the loudest coming sample <i>before</i> that sample leaves, so the output never exceeds the ceiling and nothing is clipped or saturated. The 1.5 ms of latency is reported to the host for compensation.</p>
+      <p>The <b>OUT</b> readout beside the tanpura title shows the peak before the limiter. When the limiter acts, it adds <span style="color:var(--coral); font-weight:700">LIMIT x.x</span> with the gain reduction in dB. In practice that only happens with all level knobs and the master turned up, or with twelve notes struck at full velocity in the same instant.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>10</span></div>
+</div>
+
+<!-- 11 reference -->
+<div class="page ref">
+  <h2>9 · PARAMETER REFERENCE</h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <h3>Global</h3>
+      <table>
+        <tr><td class="k">Sa (Hz)</td><td>55–440 Hz, default 138.59</td></tr>
+        <tr><td class="k">Sa key</td><td>MIDI note of madhya Sa, 36–84, default 60</td></tr>
+        <tr><td class="k">Raga</td><td>25 ragas (loads the shrutis, taraf, tanpura)</td></tr>
+        <tr><td class="k">Raga lock</td><td>Off · Snap · Mute</td></tr>
+        <tr><td class="k">Room size</td><td>shared 8-line FDN reverb</td></tr>
+        <tr><td class="k">Master</td><td>output level, into the limiter</td></tr>
+        <tr><td class="k">Channels</td><td>sitar (Any), tabla (10), tanpura (16)</td></tr>
+        <tr><td class="k">Tabla split</td><td>on: tabla and chikari below the sitar range</td></tr>
+      </table>
+      <h3>Sitar</h3>
+      <table>
+        <tr><td class="k">Mizrab · Jawari · Taraf · Chikari · Gourd · Gamak</td><td>0–100 %</td></tr>
+        <tr><td class="k">Meend</td><td>0–1200 cents</td></tr>
+        <tr><td class="k">Decay</td><td>1–20 s</td></tr>
+        <tr><td class="k">Pluck</td><td>1/20 – 1/2 of the length from the bridge</td></tr>
+        <tr><td class="k">Damp</td><td>0.1–20 s after note-off</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Tabla</h3>
+      <table>
+        <tr><td class="k">Dayan</td><td>Sa · Pa · Ma · Ni · Sa'</td></tr>
+        <tr><td class="k">Bayan</td><td>60–160 Hz</td></tr>
+        <tr><td class="k">Syahi · Glide · Press · Snap</td><td>0–100 %</td></tr>
+        <tr><td class="k">Ring</td><td>0.3–2.5 × decay</td></tr>
+      </table>
+      <h3>Tanpura</h3>
+      <table>
+        <tr><td class="k">On</td><td>click the flower's centre</td></tr>
+        <tr><td class="k">Cycle</td><td>20–120 plucks per minute</td></tr>
+        <tr><td class="k">Jawari · Human · Width</td><td>0–100 %</td></tr>
+        <tr><td class="k">1st string</td><td>Auto · Pa · Ma · Ni · ni</td></tr>
+        <tr><td class="k">Register</td><td>Low · Middle · High</td></tr>
+      </table>
+      <h3>Performance</h3>
+      <p>12 sitar voices at once, plus the tabla and the tanpura, use about 7% of one Apple M2 core at 48 kHz. All 22 shrutis were measured in three octaves of four ragas: worst error 0.3 cents without jawari and 1.5 cents with it.</p>
+      <h3>References</h3>
+      <p style="font-size:8.6pt">C. V. Raman, <i>The Indian musical drums</i>, Proc. Indian Acad. Sci. A1 (1934) · J. O. Smith, <i>Physical Audio Signal Processing</i> (digital waveguides) · J. R. Pierce &amp; S. A. Van Duyne, <i>A passive nonlinear digital filter design…</i>, JASA 101 (1997) · S. Siddiq, <i>A physical model of the nonlinear sitar string</i>, Archives of Acoustics 37 (2012) · V. Välimäki et al., <i>Discrete-time modelling of musical instruments</i>, Rep. Prog. Phys. 69 (2006).</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>11</span></div>
+</div>
+
+<script>
+const SH=[["Sa",1,1],["re",256,243],["re",16,15],["Re",10,9],["Re",9,8],["ga",32,27],["ga",6,5],["Ga",5,4],["Ga",81,64],["Ma",4,3],["Ma",27,20],["Ma'",45,32],["Ma'",729,512],["Pa",3,2],["dha",128,81],["dha",8,5],["Dha",5,3],["Dha",27,16],["ni",16,9],["ni",9,5],["Ni",15,8],["Ni",243,128]];
+const YAMAN=new Set([0,4,7,11,13,17,20]);
+const cents=(n,d)=>1200*Math.log2(n/d);
+const C={gold:"#c9a238",gold2:"#e2bf55",white:"#f3f1ec",grey:"#9fb3ba",edge:"#1b3640",orange:"#ef8a2e",coral:"#ec5f55",red:"#c3261f",pink:"#f2a9c2",violet:"#7b5a8c",tile:"#0f2128",mag:"#e2316b"};
+const P=(cx,cy,r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+const kite=(cx,cy,a,r0,r1,w)=>{const m=(r0+r1)/2*.9;return [P(cx,cy,r0,a),P(cx,cy,m,a-w),P(cx,cy,r1,a),P(cx,cy,m,a+w)].map(p=>p.join(",")).join(" ")};
+// shruti star figure
+(function(){let s="",c=200;SH.forEach(([n,a,b],i)=>{const ang=cents(a,b)/1200*2*Math.PI-Math.PI/2,on=YAMAN.has(i);
+ s+=`<polygon points="${kite(c,c,ang,48,on?160:118,on?.075:.055)}" fill="${on?C.white:'rgba(243,241,236,.5)'}" stroke="${C.gold}" stroke-width="${on?2.6:1.6}"/>`;
+ const [x,y]=P(c,c,on?178:134,ang);s+=`<text x="${x}" y="${y+3}" font-size="${on?10:8}" font-weight="700" text-anchor="middle" fill="${on?C.gold2:C.grey}" font-family="Helvetica Neue">${a}/${b}</text>`;});
+ s+=`<circle cx="${c}" cy="${c}" r="44" fill="${C.orange}" stroke="${C.gold}" stroke-width="2.5"/><circle cx="${c}" cy="${c}" r="26" fill="${C.red}"/><text x="${c}" y="${c+5}" text-anchor="middle" fill="#fff" font-weight="800" font-size="13" font-family="Helvetica Neue">SA</text>`;
+ document.getElementById("shrutiFig").innerHTML=s;
+ const names=["Sa","re","Re","ga","Ga","Ma","Ma'","Pa","dha","Dha","ni","Ni"],cand=[[0],[1,2],[3,4],[5,6],[7,8],[9,10],[11,12],[13],[14,15],[16,17],[18,19],[20,21]];
+ let t="";cand.forEach((cs,w)=>{t+=`<tr><td class="k">${names[w]}</td><td>${cs.map(i=>`${SH[i][1]}/${SH[i][2]} · ${Math.round(cents(SH[i][1],SH[i][2]))}¢`).join("   or   ")}</td></tr>`});
+ document.getElementById("shrutiTable").innerHTML+=t;})();
+// waveguide diagram
+(function(){const g=document.getElementById("wgFig");let s="";
+ const box=(x,y,w,h,t,sub,col)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${C.tile}" stroke="${col||C.gold}" stroke-width="1.6"/><text x="${x+w/2}" y="${y+h/2-2}" text-anchor="middle" fill="${C.white}" font-size="11" font-weight="800" font-family="Helvetica Neue">${t}</text><text x="${x+w/2}" y="${y+h/2+12}" text-anchor="middle" fill="${C.grey}" font-size="8.5" font-weight="700" font-family="Helvetica Neue">${sub}</text>`;
+ const arrow=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C.gold2}" stroke-width="1.8" marker-end="url(#ah)"/>`;
+ s+=`<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${C.gold2}"/></marker></defs>`;
+ s+=box(20,85,110,70,"NUT","fractional delay · meend");
+ s+=box(630,30,110,60,"JAWARI","passive allpass ×3",C.coral);
+ s+=box(630,110,110,50,"LOSS + DC","one-pole · 0.5 Hz HP");
+ s+=box(630,180,110,50,"BODY","14 modes · taraf");
+ // rails
+ s+=`<rect x="170" y="62" width="420" height="22" fill="none" stroke="${C.edge}"/><rect x="170" y="156" width="420" height="22" fill="none" stroke="${C.edge}"/>`;
+ for(let i=0;i<28;i++){s+=`<line x1="${170+i*15}" y1="62" x2="${170+i*15}" y2="84" stroke="${C.edge}"/><line x1="${170+i*15}" y1="156" x2="${170+i*15}" y2="178" stroke="${C.edge}"/>`;}
+ s+=`<text x="380" y="56" text-anchor="middle" fill="${C.grey}" font-size="9" font-weight="700" font-family="Helvetica Neue">RIGHT-GOING RAIL (M SAMPLES)</text><text x="380" y="194" text-anchor="middle" fill="${C.grey}" font-size="9" font-weight="700" font-family="Helvetica Neue">LEFT-GOING RAIL (M SAMPLES)</text>`;
+ s+=arrow(130,100,168,73)+arrow(592,73,628,60)+arrow(685,92,685,108)+arrow(628,140,594,167)+arrow(168,167,132,140)+arrow(685,162,685,178);
+ // pluck
+ s+=`<line x1="500" y1="110" x2="500" y2="152" stroke="${C.orange}" stroke-width="2" marker-end="url(#ah)"/><line x1="500" y1="130" x2="500" y2="88" stroke="${C.orange}" stroke-width="2" marker-end="url(#ah)"/><circle cx="500" cy="120" r="7" fill="${C.orange}"/><text x="512" y="124" fill="${C.white}" font-size="9.5" font-weight="800" font-family="Helvetica Neue">MIZRAB</text><text x="512" y="136" fill="${C.grey}" font-size="8" font-weight="700" font-family="Helvetica Neue">pulse at the pluck point</text>`;
+ s+=`<path d="M590,120 q18,-10 36,-50" stroke="${C.coral}" stroke-width="1.4" fill="none" stroke-dasharray="3 3"/><text x="300" y="124" fill="${C.coral}" font-size="9" font-weight="800" font-family="Helvetica Neue">y near the bridge → how far the string wraps</text>`;
+ s+=`<text x="380" y="235" text-anchor="middle" fill="${C.grey}" font-size="9" font-weight="700" font-family="Helvetica Neue">LOOP LENGTH = RAILS + NUT + FILTER DELAYS = SAMPLE RATE / (SA × RATIO)</text>`;
+ g.innerHTML=s;})();
+// membrane modes figure
+(function(){
+ const J=(m,x)=>{let s=0;const N=64;for(let i=0;i<=N;i++){const t=Math.PI*i/N,w=(i==0||i==N)?.5:1;s+=w*Math.cos(m*t-x*Math.sin(t));}return s/N;};
+ const modes=[[0,1,2.4048],[1,1,3.8317],[2,1,5.1356],[0,2,5.5201],[3,1,6.3802],[1,2,7.0156]];
+ let s="";modes.forEach(([m,n,z],k)=>{const cx=60+(k%3)*120,cy=62+Math.floor(k/3)*122,R=48;
+  // raster as small wedges/rings
+  for(let ri=0;ri<14;ri++){const r0=ri/14,r1=(ri+1)/14,rm=(r0+r1)/2;const radial=J(m,z*rm);
+   for(let ai=0;ai<48;ai++){const a0=ai/48*2*Math.PI,a1=(ai+1)/48*2*Math.PI,am=(a0+a1)/2;const v=radial*Math.cos(m*am);
+    const col=v>0?`rgba(226,191,85,${Math.min(1,Math.abs(v)*1.6+.08)})`:`rgba(123,90,140,${Math.min(1,Math.abs(v)*1.6+.08)})`;
+    const p=[P(cx,cy,R*r0,a0),P(cx,cy,R*r1,a0),P(cx,cy,R*r1,a1),P(cx,cy,R*r0,a1)].map(q=>q.join(",")).join(" ");
+    s+=`<polygon points="${p}" fill="${col}"/>`;}}
+  s+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${C.gold}" stroke-width="2"/>`;
+  s+=`<text x="${cx}" y="${cy+R+15}" text-anchor="middle" fill="${C.white}" font-size="10" font-weight="800" font-family="Helvetica Neue">(${m},${n})  ${(z/2.4048).toFixed(2)}×</text>`;});
+ document.getElementById("modesFig").innerHTML=s;})();
+// Raman figure
+(function(){const ideal=[1,1.593,2.136,2.295,2.653,2.917,3.155,3.5,3.598,3.647,4.059,4.132,4.23,4.601,4.832],
+ loaded=[1,2,3,3.01,4,4.02,5,5.02,5.05,5.83,6.4,7.3,6.9,7.8,8.6],grp=[0,1,2,2,3,3,4,4,4,5,5,5,5,5,5];
+ const cols=[C.coral,C.orange,C.gold2,C.pink,C.white,"#5f7680"];const X=v=>40+v*82;let s="";
+ for(let h=1;h<=9;h++){s+=`<line x1="${X(h)}" y1="12" x2="${X(h)}" y2="150" stroke="${C.edge}"/><text x="${X(h)}" y="164" text-anchor="middle" fill="${C.grey}" font-size="10" font-weight="700" font-family="Helvetica Neue">${h}</text>`;}
+ s+=`<text x="4" y="50" fill="${C.grey}" font-size="9" font-weight="800" font-family="Helvetica Neue">PLAIN</text><text x="4" y="118" fill="${C.grey}" font-size="9" font-weight="800" font-family="Helvetica Neue">SYAHI</text>`;
+ ideal.forEach((v,i)=>{s+=`<line x1="${X(v)}" y1="66" x2="${X(v)}" y2="${66-40+i%3*6}" stroke="${cols[grp[i]]}" stroke-width="3"/>`;
+  s+=`<line x1="${X(v)}" y1="66" x2="${X(loaded[i])}" y2="92" stroke="${cols[grp[i]]}" stroke-width=".8" opacity=".6"/>`;
+  s+=`<line x1="${X(loaded[i])}" y1="138" x2="${X(loaded[i])}" y2="${98+i%3*6}" stroke="${cols[grp[i]]}" stroke-width="3"/>`;});
+ document.getElementById("raman").innerHTML=s;})();
+// impulse responses: Tun vs Na
+(function(){let s="";const draw=(y0,ex,damp1,col,label)=>{let d="";const f=[1,2,3,4,5];
+ for(let i=0;i<=340;i++){const t=i/340*0.06;let v=0;f.forEach((h,k)=>{const T60=k==0&&damp1?0.04:[1.6,1.3,1,.75,.5][k];v+=ex[k]*Math.sin(2*Math.PI*h*280*t)*Math.exp(-6.91*t/T60);});d+=(i?"L":"M")+(10+i)+","+(y0-v*9).toFixed(1);}
+ s+=`<path d="${d}" stroke="${col}" stroke-width="1.2" fill="none"/><text x="10" y="${y0-22}" fill="${C.white}" font-size="10" font-weight="800" font-family="Helvetica Neue">${label}</text>`;};
+ draw(34,[1,.25,.3,.12,.1],false,C.gold2,"TUN");draw(94,[.12,1,.85,.6,.5],true,C.coral,"NA");
+ document.getElementById("irFig").innerHTML=s;})();
+</script>
+</body></html>

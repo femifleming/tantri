@@ -1,0 +1,7 @@
+build/
+build-release/
+*.log
+.DS_Store
+demos/*.wav
+tests/lab/lab
+tests/lab/pitch

@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:#1b0d06}
+body{font-family:"Baskerville",serif;color:#f1e3c4}
+.wood{position:absolute;inset:0;background:
+ repeating-linear-gradient(92deg,rgba(0,0,0,.18) 0 2px,transparent 2px 7px,rgba(255,200,140,.04) 7px 9px,transparent 9px 15px),
+ repeating-linear-gradient(88deg,rgba(0,0,0,.25) 0 1px,transparent 1px 41px),
+ radial-gradient(ellipse at 30% 20%,#6a2f17,#3a170b 60%,#200b05)}
+.wood:after{content:"";position:absolute;inset:0;filter:url(#grain);background:#000;opacity:.35;mix-blend-mode:multiply}
+.frame{position:absolute;inset:14px;border:3px solid #e9dcc0;border-radius:6px;box-shadow:inset 0 0 0 6px #2a1209,inset 0 0 0 8px #c9a86a}
+.inlay{position:absolute;left:14px;right:14px;height:16px;background:repeating-linear-gradient(45deg,#efe2c6 0 6px,#2a1209 6px 8px,#c9a86a 8px 12px,#2a1209 12px 14px)}
+h1{position:absolute;left:50px;top:30px;margin:0;font-size:40px;letter-spacing:6px;color:#f3e6c8;text-shadow:0 2px 0 #000}
+h1 small{font-size:20px;letter-spacing:2px;color:#c9a86a;margin-left:12px;font-family:"Devanagari Sangam MN"}
+.tune{position:absolute;right:50px;top:36px;display:flex;gap:16px}
+.plaque{background:linear-gradient(#e9dcc0,#cdb88f);color:#2a1209;padding:7px 16px;border-radius:3px;box-shadow:0 2px 4px #000,inset 0 1px #fff;font-size:15px}
+.plaque b{font-size:20px}
+.panel{position:absolute;top:100px;bottom:150px;border-radius:6px;background:rgba(20,7,2,.55);box-shadow:inset 0 2px 10px #000;border:1px solid #c9a86a55;padding:14px 18px}
+.panel h2{margin:0 0 6px;font-weight:normal;font-size:22px;letter-spacing:4px;color:#e9dcc0}
+.panel h2 span{font-family:"Devanagari Sangam MN";color:#c9a86a;font-size:16px;margin-left:8px}
+.knobs{display:flex;flex-wrap:wrap;gap:6px 10px}
+.k{width:70px;text-align:center;font-size:12px;color:#d9c6a0}
+.k i{display:block;font-style:normal;color:#c9a86a;font-size:11px}
+.neck{position:absolute;left:40px;right:40px;bottom:36px;height:84px;border-radius:8px;background:linear-gradient(#5a2a12,#2c1206);box-shadow:inset 0 0 12px #000,0 3px 8px #000}
+.sel{color:#2a1209;background:#e9dcc0;border-radius:2px;padding:1px 6px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9 .02" numOctaves="3"/></filter></svg>
+<div class="wood"></div><div class="frame"></div>
+<div class="inlay" style="top:84px"></div><div class="inlay" style="bottom:130px"></div>
+<h1>TANTRI<small>तन्त्री</small></h1>
+<div class="tune"><div class="plaque">Sa <b>138.59</b> Hz</div><div class="plaque">Raga <b>Yaman</b></div><div class="plaque">Shruti <b>22 · just</b></div></div>
+
+<div class="panel" style="left:40px;width:480px"><h2>SITAR<span>सितार</span></h2>
+ <svg width="480" height="96"></svg>
+ <div class="knobs" id="sk"></div></div>
+<div class="panel" style="left:556px;width:290px"><h2>TABLA<span>तबला</span></h2>
+ <div style="display:flex;gap:8px;align-items:center" id="drums"></div>
+ <div class="knobs" id="tk"></div></div>
+<div class="panel" style="left:882px;width:244px"><h2>TANPURA<span>तानपूरा</span></h2>
+ <div style="font-size:14px;line-height:1.9;margin:4px 0 8px">Tuning&nbsp; <span class="sel">Pa</span> Sa Sa sa &nbsp;·&nbsp; Ma &nbsp;·&nbsp; Ni</div>
+ <div class="knobs" id="nk"></div></div>
+<div class="neck" id="neck"></div>
+<script>
+const brass={track:"#00000088",fill:"#d9b26a",body:"url(#br)",pointer:"#2a1209",size:52,inset:7,w:3};
+const defs=`<svg width=0 height=0 style="position:absolute"><radialGradient id="br" cx=".35" cy=".3"><stop offset="0" stop-color="#fff2c4"/><stop offset=".45" stop-color="#c99a45"/><stop offset="1" stop-color="#5e3b10"/></radialGradient></svg>`;
+document.body.insertAdjacentHTML("beforeend",defs);
+const K=(id,list)=>document.getElementById(id).innerHTML=list.map(([n,v,t])=>`<div class="k">${knob(v,brass)}<br>${n}<i>${t}</i></div>`).join("");
+document.querySelector(".panel svg").innerHTML=stringWave(480,96,"#efe2c6",1.3);
+K("sk",[["Mizrab",.62,"wire pick"],["Jawari",.71,"bridge"],["Meend",.5,"±7 shruti"],["Taraf",.58,"13 strings"],["Chikari",.4,"Sa' Sa''"],["Gourd",.66,"body"],["Gamak",.3,"oscill."],["Decay",.74,"6.2 s"],["Pluck pos",.22,"1/9"],["Release",.45,"damp"],["Room",.35,"haveli"],["Level",.8,"-3 dB"]]);
+document.getElementById("drums").innerHTML=membrane(56,{skin:"#e8d3a8",rim:"#3a1a08",syahi:"#1a1410",mode:"#7a4a20",off:0})+membrane(64,{skin:"#dcc296",rim:"#4a3020",syahi:"#1a1410",mode:"#7a4a20",off:16});
+K("tk",[["Dayan Sa",.5,"tuned"],["Bayan",.44,"press"],["Syahi",.6,"load"],["Gajra",.4,"tension"],["Ghe glide",.55,"AT"],["Level",.75,"-4 dB"]]);
+K("nk",[["Cycle",.42,"58 bpm"],["Jawari",.8,"thread"],["Humanise",.5,"timing"],["Female",.0,"male"],["Width",.6,"stereo"],["Level",.6,"-8 dB"]]);
+// sitar neck with movable pardas at Yaman shrutis over two saptaks
+let n=`<svg width="1120" height="84">`;
+for(let s=0;s<5;s++)n+=`<line x1="10" x2="1110" y1="${18+s*12}" y2="${18+s*12}" stroke="#d9c6a0" stroke-width="${1.8-s*.25}"/>`;
+const L=1100;[...YAMAN].concat([...YAMAN].map(i=>i+22)).forEach(i=>{const c=SHRUTI[i%22][2]+(i>=22?1200:0);const x=10+L*(1-Math.pow(2,-c/1200))*1.95;if(x>1110)return;
+ n+=`<path d="M${x-5},8 Q${x},2 ${x+5},8 L${x+5},76 Q${x},82 ${x-5},76Z" fill="url(#br)" opacity=".95"/><text x="${x}" y="${c?96:96}" font-size="10" fill="#c9a86a"></text>`;
+ n+=`<text x="${x+8}" y="80" font-size="10" fill="#c9a86a" font-family="Baskerville">${SHRUTI[i%22][0]}</text>`});
+document.getElementById("neck").innerHTML=n+"</svg>";
+document.getElementById("sk").insertAdjacentHTML("afterend",`<div style="margin-top:8px;font-size:12px;color:#c9a86a;letter-spacing:2px">TARAF · sympathetic, tuned to Yaman</div>`+tarafRow("#efe2c6","#c9a86a"));
+document.getElementById("tk").insertAdjacentHTML("afterend",bolGrid("background:#e9dcc018;border:1px solid #c9a86a55;border-radius:3px","#c9a86a"));
+document.getElementById("nk").insertAdjacentHTML("afterend",`<div style="margin-top:14px;font-size:12px;color:#c9a86a;letter-spacing:2px">PLUCK CYCLE</div>`+tanpuraCycle("#e9dcc0","#c9a86a","Baskerville"));
+</script></body></html>

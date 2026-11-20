@@ -1,0 +1,98 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+html,body{margin:0;width:1200px;height:780px;overflow:hidden;background:#0b0b0b}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#ececec}
+.top{position:absolute;left:28px;right:28px;top:20px;height:40px;display:flex;align-items:center;gap:26px}
+.logo{font-weight:800;font-size:24px;letter-spacing:1px}
+.pill{font-weight:700;font-size:13px;color:#8a8a8a}.pill b{color:#ececec;margin-left:6px}
+.tile{position:absolute;top:76px;width:368px;height:368px;background:#000;border:1px solid #1d1d1d}
+.name{position:absolute;top:456px;font-weight:800;font-size:21px}
+.name span{font-weight:700;color:#8a8a8a;font-size:13px;margin-left:8px}
+.ctl{position:absolute;top:494px;width:368px;display:flex;flex-wrap:wrap;gap:4px 0}
+.k{width:61px;text-align:center;font-weight:700;font-size:10px;letter-spacing:.6px;color:#d6d6d6}
+.k i{display:block;font-style:normal;font-weight:500;color:#7a7a7a;font-size:10px;letter-spacing:0;margin-top:1px}
+.strip{position:absolute;left:28px;right:28px;bottom:22px;height:62px;background:#000;border:1px solid #1d1d1d}
+</style></head><body>
+<div class="top"><div class="logo">TANTRI</div><div class="pill">SA<b>138.59 HZ</b></div><div class="pill">RAGA<b>YAMAN</b></div><div class="pill">SHRUTI<b>22 · JUST</b></div><div class="pill">MEEND<b>±7</b></div><div class="pill" style="margin-left:auto">VOICES<b>12</b></div></div>
+<div class="tile" style="left:28px" id="t1"></div><div class="tile" style="left:416px" id="t2"></div><div class="tile" style="left:804px" id="t3"></div>
+<div class="name" style="left:28px">SITAR 22<span>WAVEGUIDE · JAWARI · 13 TARAF</span></div>
+<div class="name" style="left:416px">TABLA 16<span>MODAL · TEENTAAL</span></div>
+<div class="name" style="left:804px">TANPURA 4<span>PA SA SA SA</span></div>
+<div class="ctl" style="left:28px" id="sk"></div><div class="ctl" style="left:416px" id="tk"></div><div class="ctl" style="left:804px" id="nk"></div>
+<div class="strip" id="strip"></div>
+<script>
+const R="#e8352a",O="#f0952e",Y="#f6e43a",G="#3d9b2b",B="#1d2bf2",V="#b23cf2",K="#000";
+const P=(cx,cy,r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+const pts=a=>a.map(p=>p.map(v=>v.toFixed(1)).join(",")).join(" ");
+const poly=(p,f,sw=1.2)=>`<polygon points="${pts(p)}" fill="${f}" stroke="${K}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+const line=(a,b,w=.7)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${K}" stroke-width="${w}"/>`;
+// triangle with fan of thin lines from apex to the base — the CoL "facet" texture
+function fanTri(a,b,c,f,n=6){let s=poly([a,b,c],f);for(let i=1;i<n;i++){const t=i/n;s+=line(a,[b[0]+(c[0]-b[0])*t,b[1]+(c[1]-b[1])*t],.6);}return s;}
+// kite split into two coloured halves with fans
+function kite(cx,cy,a,r0,r1,w,c1,c2,n=5){const m=(r0+r1)/2,A=P(cx,cy,r0,a),Bp=P(cx,cy,r1,a),L=P(cx,cy,m,a-w),Rt=P(cx,cy,m,a+w);
+ return fanTri(Bp,A,L,c1,n)+fanTri(Bp,A,Rt,c2,n);}
+function ring(cx,cy,n,r0,r1,cols,rot=-Math.PI/2){let s="";for(let i=0;i<n;i++){const a0=rot+i*2*Math.PI/n,a1=a0+2*Math.PI/n;
+ s+=fanTri(P(cx,cy,r1,(a0+a1)/2),P(cx,cy,r0,a0),P(cx,cy,r0,a1),cols[i%cols.length],4)+poly([P(cx,cy,r1,(a0+a1)/2),P(cx,cy,r1,a1),P(cx,cy,r0,a1)],cols[(i+1)%cols.length]);}return s;}
+function starOutline(cx,cy,n,ro,ri,w,rot=-Math.PI/2){const p=[];for(let i=0;i<n*2;i++)p.push(P(cx,cy,i%2?ri:ro,rot+i*Math.PI/n));
+ return `<polygon points="${pts(p)}" fill="none" stroke="${K}" stroke-width="${w}" stroke-linejoin="miter"/>`;}
+// circle split into coloured wedges (CoL 10/11 roundels)
+function roundel(x,y,r,cols,rot=0){let s="";const n=cols.length;for(let i=0;i<n;i++){const a0=rot+i*2*Math.PI/n,a1=a0+2*Math.PI/n,[x0,y0]=P(x,y,r,a0),[x1,y1]=P(x,y,r,a1);
+ s+=`<path d="M${x},${y} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}Z" fill="${cols[i]}" stroke="${K}" stroke-width="1"/>`;}return s+`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${K}" stroke-width="2"/>`;}
+
+const swaraCol=[R,O,Y,G,B,V,R]; // one colour per swara of the raga
+// SITAR: outer 22 shruti blades (raga shrutis long + coloured), inner 7-fold faceted star
+function sitar(){const c=184;let s=`<svg width="368" height="368">`;const ys=[...YAMAN];
+ // dense 7-fold body behind the blades
+ for(let i=0;i<7;i++){const a=-Math.PI/2+i*2*Math.PI/7,h=Math.PI/7;
+  s+=fanTri(P(c,c,150,a),P(c,c,96,a-h),P(c,c,96,a),i%2?V:B,7)+fanTri(P(c,c,150,a),P(c,c,96,a+h),P(c,c,96,a),i%2?B:V,7);}
+ s+=starOutline(c,c,7,150,96,5);
+ SHRUTI.forEach(([n,r,cents],i)=>{const a=cents/1200*Math.PI*2-Math.PI/2,j=ys.indexOf(i);
+  s+= j>=0? kite(c,c,a,70,172,.11,swaraCol[j],j%2?V:B,6) : kite(c,c,a,70,124,.06,G,Y,3);});
+ s+=ring(c,c,14,72,46,[V,B,V,R]);
+ s+=starOutline(c,c,7,96,52,5);
+ for(let i=0;i<7;i++)s+=kite(c,c,-Math.PI/2+i*2*Math.PI/7,10,44,.32,O,R,4);
+ s+=`<circle cx="${c}" cy="${c}" r="9" fill="${Y}" stroke="#000" stroke-width="2"/>`;
+ return s+"</svg>";}
+// TABLA: hexadecagon cycle; 16 roundels = matras, colour-split by vibhag; khali roundels hollow
+function tabla(){const c=184;let s=`<svg width="368" height="368">`;
+ const outer=[];for(let i=0;i<16;i++)outer.push(P(c,c,172,-Math.PI/2+i*Math.PI/8+Math.PI/16));
+ s+=poly(outer,B,2);
+ for(let i=0;i<16;i++){const a=-Math.PI/2+i*Math.PI/8;s+=fanTri(P(c,c,172,a+Math.PI/16),P(c,c,118,a),P(c,c,118,a+Math.PI/8),i%2?G:B,5);}
+ s+=starOutline(c,c,8,170,110,5,-Math.PI/2+Math.PI/16);
+ const vib=[[R,O,Y],[O,Y,G],[V,B,"#000"],[R,V,O]];
+ for(let i=0;i<16;i++){const a=-Math.PI/2+i*Math.PI/8,[x,y]=P(c,c,94,a),v=Math.floor(i/4);
+  s+=i>=8&&i<12?`<circle cx="${x}" cy="${y}" r="15" fill="#000" stroke="${V}" stroke-width="2.5"/>`:roundel(x,y,i%4?14:18,vib[v],a);
+  const [lx,ly]=P(c,c,94,a);if(i%4==0)s+=`<text x="${lx}" y="${ly+5}" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" font-family="Helvetica">${i==0?"X":i==8?"0":i==4?"2":"3"}</text>`;}
+ s+=ring(c,c,12,70,40,[O,R,O,Y]);s+=starOutline(c,c,6,72,40,4);
+ s+=`<circle cx="${c}" cy="${c}" r="28" fill="#000"/>`+starOutline(c,c,6,20,11,0);
+ for(let i=0;i<6;i++)s+=line([c,c],P(c,c,26,i*Math.PI/3),1);
+ return s+"</svg>";}
+// TANPURA: 4 arms (strings) ending in faceted fan-tips; sounding arm (Sa) is orange, others in cool tones
+function tanpura(){const c=184;let s=`<svg width="368" height="368">`;const names=["PA","SA","SA","sa"],col=[B,O,G,V];
+ for(let i=0;i<4;i++){const a=-Math.PI/2+i*Math.PI/2,w=24,ux=Math.cos(a),uy=Math.sin(a),px=-uy,py=ux;
+  const q=(d,o)=>[c+ux*d+px*o,c+uy*d+py*o];
+  s+=poly([q(36,-w),q(130,-w),q(130,w),q(36,w)],col[i],2);
+  for(let k=1;k<6;k++)s+=line(q(36+k*16,-w),q(36+k*16,w),.5);
+  // fan tip
+  s+=fanTri(q(176,0),q(130,-w-14),q(130,0),Y,6)+fanTri(q(176,0),q(130,w+14),q(130,0),i==1?R:G,6);
+  s+=poly([q(130,-w-14),q(130,w+14),q(116,0)],"#000",0);
+  const [tx,ty]=q(84,0);s+=`<text x="${tx}" y="${ty+6}" text-anchor="middle" font-size="16" font-weight="800" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" font-family="Helvetica">${names[i]}</text>`;}
+ for(let i=0;i<4;i++){const a=-Math.PI/4+i*Math.PI/2;s+=kite(c,c,a,30,110,.16,R,O,5);}
+ s+=ring(c,c,8,40,22,[Y,O]);s+=starOutline(c,c,8,44,24,4);
+ s+=`<circle cx="${c}" cy="${c}" r="12" fill="${V}" stroke="#000" stroke-width="3"/>`;
+ return s+"</svg>";}
+t1.innerHTML=sitar();t2.innerHTML=tabla();t3.innerHTML=tanpura();
+// knob: roundel whose wedges fill with colour up to value
+function rk(v,cols){const c=24,n=12;let s=`<svg width="48" height="48">`;
+ for(let i=0;i<n;i++){const t=i/(n-1),a0=Math.PI*.75+t*Math.PI*1.5-0.11,a1=a0+0.22,on=t<=v+1e-6;
+  s+=poly([P(c,c,8,(a0+a1)/2),P(c,c,22,a0),P(c,c,22,a1)],on?cols[i%cols.length]:"#1c1c1c",1);}
+ s+=`<circle cx="${c}" cy="${c}" r="11" fill="#000" stroke="${cols[0]}" stroke-width="2"/>`;const [x,y]=P(c,c,9,Math.PI*.75+v*Math.PI*1.5);
+ return s+`<line x1="${c}" y1="${c}" x2="${x}" y2="${y}" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>`;}
+const Kn=(id,cols,l)=>document.getElementById(id).innerHTML=l.map(([n,v,t])=>`<div class="k">${rk(v,cols)}<br>${n}<i>${t}</i></div>`).join("");
+Kn("sk",[R,O,Y],[["MIZRAB",.62,"wire"],["JAWARI",.71,"bridge"],["MEEND",.5,"±7"],["TARAF",.58,"-9 dB"],["CHIKARI",.4,"-14"],["GOURD",.66,"body"],["GAMAK",.3,"5 Hz"],["DECAY",.74,"6.2 s"],["PLUCK",.22,"1/9"],["DAMP",.45,"0.45"],["ROOM",.35,"18%"],["LEVEL",.8,"-3 dB"]]);
+Kn("tk",[B,V,G],[["DAYAN",.5,"= SA"],["BAYAN",.44,"press"],["SYAHI",.6,"load"],["GLIDE",.55,"AT"],["GAJRA",.4,"tension"],["LEVEL",.75,"-4 dB"],["SNAP",.35,"rim"],["ROOM",.3,"12%"]]);
+Kn("nk",[O,Y,G],[["CYCLE",.42,"58 bpm"],["JAWARI",.8,"thread"],["1ST STR",.0,"PA"],["HUMAN",.5,"12 ms"],["WIDTH",.6,"60%"],["LEVEL",.6,"-8 dB"]]);
+let st=`<svg width="1144" height="62">`;const sw=[...YAMAN];for(let o=0;o<3;o++)sw.forEach((i,j)=>{const x=36+(o*7+j)*52.5;
+ st+=roundel(x,24,j==0?14:11,[swaraCol[j],swaraCol[(j+2)%7],swaraCol[(j+4)%7]],-Math.PI/2)+`<text x="${x}" y="54" text-anchor="middle" font-size="10" font-weight="700" fill="${j==0?"#fff":"#8a8a8a"}" font-family="Helvetica">${SHRUTI[i][0].toUpperCase()} ${SHRUTI[i][1]}</text>`;});
+strip.innerHTML=st+"</svg>";
+</script></body></html>

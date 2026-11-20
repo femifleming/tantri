@@ -1,0 +1,89 @@
+#pragma once
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_utils/juce_audio_utils.h>
+#include "Sitar.h"
+#include "Tabla.h"
+#include "Tanpura.h"
+
+class TantriProcessor : public juce::AudioProcessor, private juce::AudioProcessorValueTreeState::Listener
+{
+public:
+    TantriProcessor();
+    ~TantriProcessor() override;
+
+    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+    void releaseResources() override {}
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    using AudioProcessor::processBlock;
+
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+    const juce::String getName() const override { return "Tantri"; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 8.0; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const juce::String&) override {}
+    void getStateInformation (juce::MemoryBlock&) override;
+    void setStateInformation (const void*, int) override;
+
+    juce::AudioProcessorValueTreeState apvts;
+    juce::MidiKeyboardState keyboard;   // UI auditioning (bottom strip)
+
+    // tuning (not a host parameter: edited on the shruti star; raga choice param loads presets)
+    tantri::TuningBits getTuning() const { return { tuningBits.load() }; }
+    void setTuning (tantri::TuningBits t) { tuningBits.store (t.v); tuningVersion.fetch_add (1); }
+    bool tuningIsCustom() const;
+    double saHz() const { return apvts.getRawParameterValue ("saHz")->load(); }
+    int saKey() const { return (int) apvts.getRawParameterValue ("saKey")->load(); }
+
+    // meters for the UI (written by the audio thread, read by the editor timer)
+    std::atomic<float> swaraAct[12] {};
+    std::atomic<float> chikAct { 0 }, dayanAct { 0 }, bayanAct { 0 };
+    std::atomic<int> lastBol { -1 };
+    std::atomic<unsigned> strokeCount { 0 };
+    std::atomic<float> tanpuraAct[4] {};
+    std::atomic<int> tanpuraLast { -1 }, tanpuraFirst { 1 };
+    std::atomic<double> beatPos { -1.0 };     // host beat position, -1 if not playing
+    std::atomic<int> voicesUsed { 0 };
+    std::atomic<float> outPeak { 0 }, limitDb { 0 };
+    // mono output for the vortex spectrogram (lock-free single producer / single consumer)
+    juce::AbstractFifo scopeFifo { 32768 };
+    std::vector<float> scopeBuf = std::vector<float> (32768, 0.0f);
+    int readScope (float* dest, int maxN)
+    {
+        int n = std::min (maxN, scopeFifo.getNumReady());
+        auto r = scopeFifo.read (n);
+        if (r.blockSize1 > 0) std::copy_n (scopeBuf.data() + r.startIndex1, r.blockSize1, dest);
+        if (r.blockSize2 > 0) std::copy_n (scopeBuf.data() + r.startIndex2, r.blockSize2, dest + r.blockSize1);
+        return n;
+    }
+    double getSr() const { return sr; }   // pre-limiter peak, limiter gain reduction (dB, <= 0)
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+    static juce::StringArray ragaNames();
+
+private:
+    void parameterChanged (const juce::String& id, float v) override;
+    void handleMidi (const juce::MidiMessage& m);
+    void readParams();
+
+    tantri::Sitar sitar;
+    tantri::Tabla tabla;
+    tantri::Tanpura tanpura;
+    tantri::FdnReverb reverb;
+    tantri::Limiter limiter;
+    std::atomic<uint64_t> tuningBits { tantri::parseRaga (tantri::kRagas[0].spec).v };
+    std::atomic<unsigned> tuningVersion { 1 };
+    int tanpuraHeld = 0;
+    float tablaPressure = 0;
+    double sr = 48000;
+    juce::LinearSmoothedValue<float> master;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TantriProcessor)
+};
