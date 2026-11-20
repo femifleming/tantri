@@ -244,13 +244,22 @@ void TablaTile::paint (juce::Graphics& g)
 }
 
 // ---------------------------------------------------------------- Tanpura tile: four-fold flower
+// cycle: the strings are plucked in turn. drone: the chosen strings sound on and on (petals choose:
+// one note, or toggle the strings of the chord)
+static bool droneMode (TantriProcessor& p) { return (int) getParam (p, "n_mode") == 1; }
+static bool droneWants (TantriProcessor& p, int i)
+{
+    if ((int) getParam (p, "n_voicing") == 0) return (int) getParam (p, "n_note") == i;
+    return getParam (p, ("n_dr" + juce::String (i + 1)).toRawUTF8()) > 0.5f;
+}
 void TanpuraTile::paint (juce::Graphics& g)
 {
     g.fillAll (col::tile);
     g.setColour (col::edge); g.drawRect (getLocalBounds(), 1);
     const juce::Point<float> c (184, 184);
     const bool on = getParam (proc, "n_on") > 0.5f;
-    g.setColour (col::gold); g.drawEllipse (juce::Rectangle<float> (320, 320).withCentre (c), 10);
+    const bool drone = droneMode (proc);
+    g.setColour (col::gold); g.drawEllipse (juce::Rectangle<float> (320, 320).withCentre (c), drone ? 14.0f : 10.0f);
     float sw = 0; for (float a : act) sw = std::max (sw, a);
     for (int i = 0; i < 32; ++i)
     {
@@ -265,11 +274,12 @@ void TanpuraTile::paint (juce::Graphics& g)
     {
         float a = -kHalfPi + i * kHalfPi;
         float lv = juce::jlimit (0.0f, 1.0f, act[i]);
-        fill (g, kite (c, a, 30, 128, 0.42f), col::white.interpolatedWith (col::orange, lv), col::gold, 3);
-        fill (g, kite (c, a, 48, 108, 0.22f), col::pink.interpolatedWith (col::coral, lv));
+        const bool chosen = ! drone || droneWants (proc, i);
+        fill (g, kite (c, a, 30, 128, 0.42f), chosen ? col::white.interpolatedWith (col::orange, lv) : col::off, col::gold, chosen && drone ? 4.0f : 3.0f);
+        fill (g, kite (c, a, 48, 108, 0.22f), chosen ? col::pink.interpolatedWith (col::coral, lv) : col::edge);
         fill (g, kite (c, a + MathConstants<float>::pi / 4, 30, 96, 0.25f), col::white, col::gold, 2.5f);
         auto q = P (c, 84, a);
-        g.setColour (lv > 0.5f ? col::white : col::ink);
+        g.setColour (! chosen ? col::dim : lv > 0.5f ? col::white : col::ink);
         g.setFont (font (14));
         g.drawText (names[i], juce::Rectangle<float> (40, 18).withCentre (q), juce::Justification::centred);
         if (i == 0 && (int) getParam (proc, "n_first") == 0)
@@ -277,23 +287,312 @@ void TanpuraTile::paint (juce::Graphics& g)
             g.setFont (font (8)); g.setColour (col::dim);
             g.drawText ("AUTO", juce::Rectangle<float> (40, 10).withCentre (q.translated (0, 13)), juce::Justification::centred);
         }
+        if (drone && chosen) gem (g, P (c, 140, a), 7.0f, a, lv);
     }
     fill (g, star (c, 12, 30, 18), on ? col::red : col::off, col::gold, 2);
     g.setColour (on ? col::white : col::grey); g.fillEllipse (juce::Rectangle<float> (18, 18).withCentre (c));
     g.setColour (col::grey); g.setFont (font (10));
-    g.drawText (on ? "CENTRE: STOP" : "CENTRE: PLAY", 12, 8, 200, 14, juce::Justification::left);
-    g.drawText ("TOP PETAL: FIRST STRING", 12, 22, 220, 14, juce::Justification::left);
+    if (drone)
+    {
+        const bool single = (int) getParam (proc, "n_voicing") == 0;
+        g.drawText (on ? "CENTRE: STOP" : "CENTRE: DRONE", 12, 8, 150, 14, juce::Justification::left);
+        g.drawText (single ? "PETAL: THE NOTE" : "PETALS: THE CHORD", 12, 22, 150, 14, juce::Justification::left);
+        g.setColour (col::gold2);
+        g.drawText (juce::String (juce::CharPointer_UTF8 (single ? "DRONE \xc2\xb7 SINGLE" : "DRONE \xc2\xb7 CHORD")), 236, 8, 120, 14, juce::Justification::right);
+    }
+    else
+    {
+        g.drawText (on ? "CENTRE: STOP" : "CENTRE: PLAY", 12, 8, 200, 14, juce::Justification::left);
+        g.drawText ("TOP PETAL: FIRST STRING", 12, 22, 220, 14, juce::Justification::left);
+    }
 }
 void TanpuraTile::mouseDown (const juce::MouseEvent& e)
 {
     auto d = e.position - juce::Point<float> (184, 184);
     if (d.getDistanceFromOrigin() < 34) { setParam (proc, "n_on", getParam (proc, "n_on") > 0.5f ? 0.0f : 1.0f); repaint(); return; }
+    if (droneMode (proc))
+    {
+        if (d.getDistanceFromOrigin() > 140) return;
+        // petal under the click: 0 top, 1 right, 2 bottom, 3 left
+        float a = std::atan2 (d.y, d.x) + kHalfPi;
+        int i = (int) std::floor (a / kHalfPi + 0.5f);
+        i = ((i % 4) + 4) % 4;
+        if ((int) getParam (proc, "n_voicing") == 0) setParam (proc, "n_note", (float) i);
+        else
+        {
+            juce::String id = "n_dr" + juce::String (i + 1);
+            setParam (proc, id.toRawUTF8(), getParam (proc, id.toRawUTF8()) > 0.5f ? 0.0f : 1.0f);
+        }
+        repaint();
+        return;
+    }
     if (std::abs (d.x) < 34 && d.y < -34 && d.y > -130)
     {
         int f = ((int) getParam (proc, "n_first") + 1) % 5;
         setParam (proc, "n_first", (float) f);
         repaint();
     }
+}
+
+// ---------------------------------------------------------------- Space panel (Tantri Akasha)
+namespace
+{
+    const char* const kSrcName[4] = { "SITAR", "TABLA", "TANPURA", "INPUT" };
+    juce::Colour srcColour (int k)
+    {
+        switch (k) { case 0: return col::orange; case 1: return col::red2; case 2: return col::gold2; default: return col::pink; }
+    }
+    // the four directions, left to right on the unrolled sphere
+    juce::String upper (const char* s) { return juce::String (s).toUpperCase(); }
+}
+
+SpacePanel::SpacePanel (TantriProcessor& p) : proc (p)
+{
+    using namespace tantri::field;
+    struct K { juce::String id; const char* label; };
+    std::vector<K> field { { "order", "ORDER" }, { "rolloff", "ROLLOFF" }, { "air", "AIR" }, { "spread", "SPREAD" },
+                           { "blur", "BLUR" }, { "near", "NEAR" }, { "mspeed", "SPEED" }, { "yaw", "TURN" }, { "pitch", "TILT" } };
+    if (TantriProcessor::kFx) { field.push_back ({ "i_level", "INPUT" }); field.push_back ({ "i_symp", "SYMPATHY" }); }
+    auto addKnob = [this] (const juce::String& id, const char* label, int x, int y)
+    {
+        auto* prm = proc.apvts.getParameter (id);
+        if (prm == nullptr) return;
+        auto knob = std::make_unique<StarKnob> (prm, label);
+        knob->setBounds (x, y, 61, 82);
+        addAndMakeVisible (*knob);
+        attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, id, *knob));
+        knobs.push_back (std::move (knob));
+    };
+    for (size_t i = 0; i < field.size(); ++i)
+        addKnob (field[i].id, field[i].label, kMapW + 24 + (int) (i % 6) * 61, 34 + (int) (i / 6) * 86);
+
+    const int ns = TantriProcessor::kSources;
+    const int colW = 1144 / ns;
+    for (int k = 0; k < ns; ++k)
+    {
+        juce::String pre (TantriProcessor::kSrcId[k]);
+        const int x0 = k * colW + (colW - 4 * 61) / 2;
+        addKnob (pre + "_az", "DIRECTION", x0, 452);
+        addKnob (pre + "_el", "HEIGHT", x0 + 61, 452);
+        addKnob (pre + "_dist", "DISTANCE", x0 + 122, 452);
+        addKnob (pre + "_rate", "RATE", x0 + 183, 452);
+        auto pill = std::make_unique<Pill> ("MOTION");
+        pill->text = [this, k] { return upper (kMotionName[juce::jlimit (0, motion::Count - 1, (int) pv (k, "_motion"))]); };
+        pill->valueColour = [k] { return srcColour (k); };
+        auto* raw = pill.get();
+        pill->onClick = [this, k, raw] { motionMenu (k, raw); };
+        pill->setBounds (x0, 420, 244, 24);
+        addAndMakeVisible (*pill);
+        motionPills.push_back (std::move (pill));
+    }
+    for (auto& kn : knobs) kn->onValueChange = [this] { repaint(); };
+}
+SpacePanel::~SpacePanel() = default;
+
+float SpacePanel::pv (int k, const char* suffix) const
+{
+    return proc.apvts.getRawParameterValue (juce::String (TantriProcessor::kSrcId[k]) + suffix)->load();
+}
+
+void SpacePanel::paint (juce::Graphics& g)
+{
+    using namespace tantri::field;
+    const int ns = TantriProcessor::kSources;
+    // ---- the unrolled sphere
+    juce::Rectangle<float> map (0, 0, (float) kMapW, (float) kMapH);
+    g.setColour (col::tile); g.fillRect (map);
+    g.setColour (col::edge); g.drawRect (map, 1);
+    // height bands every 15 degrees (darker going down), gold horizon
+    for (int e = -45; e < 90; e += 15)
+    {
+        const float y0 = mapPoint (0, yForElDeg ((float) e + 15)).y, y1 = mapPoint (0, yForElDeg ((float) e)).y;
+        g.setColour (col::bg.interpolatedWith (col::tile, 0.55f + 0.45f * (e + 45) / 135.0f));
+        g.fillRect (1.0f, y0, kMapW - 2.0f, y1 - y0 - 1.0f);
+    }
+    const float hy = mapPoint (0, yForElDeg (0)).y;
+    g.setColour (col::gold); g.fillRect (1.0f, hy - 1.5f, kMapW - 2.0f, 3.0f);
+    // the directions: a small star every 45 degrees on the horizon, names above
+    static const char* dirs[9] = { "BEHIND", "", "LEFT", "", "FRONT", "", "RIGHT", "", "BEHIND" };
+    for (int i = 0; i <= 8; ++i)
+    {
+        const float x = i / 8.0f * kMapW;
+        g.setColour (col::off); g.drawVerticalLine ((int) x, 1.0f, kMapH - 1.0f);
+        fill (g, star ({ x, hy }, 4, i % 2 ? 6.0f : 9.0f, 3.0f), i % 2 ? col::gold : col::white, col::gold, 1.0f);
+        if (dirs[i][0] != 0)
+        {
+            g.setColour (col::grey); g.setFont (font (10));
+            g.drawText (dirs[i], juce::Rectangle<float> (70, 14).withCentre ({ juce::jlimit (36.0f, kMapW - 36.0f, x), 12.0f }), juce::Justification::centred);
+        }
+    }
+    g.setColour (col::dim); g.setFont (font (9, false));
+    g.drawText ("OVERHEAD", 8, 24, 80, 12, juce::Justification::left);
+    g.drawText (juce::String (juce::CharPointer_UTF8 ("45\xc2\xb0 BELOW")), 8, kMapH - 15, 80, 12, juce::Justification::left);
+
+    // the sources: trail, home ring, the moving star (larger when near), its name
+    for (int k = 0; k < ns; ++k)
+    {
+        const auto colr = srcColour (k);
+        auto& tr = trails[(size_t) k];
+        for (int j = 0; j < tr.n; ++j)
+        {
+            const int idx = (tr.w - 1 - j + 48) % 48;
+            const float a = 1.0f - j / 48.0f;
+            g.setColour (colr.withAlpha (0.55f * a));
+            g.fillEllipse (juce::Rectangle<float> (3.0f + 2.0f * a, 3.0f + 2.0f * a).withCentre (tr.p[(size_t) idx]));
+        }
+        const auto home = mapPoint (xForAzDeg (pv (k, "_az")), yForElDeg (pv (k, "_el")));
+        const auto now = mapPoint (proc.srcX[k].load(), proc.srcY[k].load());
+        const float d = proc.srcD[k].load();
+        fill (g, ngon (home, 8, 9), col::tile, col::gold, 1.5f);
+        if (home.getDistanceFrom (now) > 3 && home.getDistanceFrom (now) < kMapW * 0.5f)
+        {
+            g.setColour (colr.withAlpha (0.5f));
+            g.drawLine ({ home, now }, 1.2f);
+        }
+        const float r = 10.0f + 16.0f * (1.0f - d);
+        const float glow = juce::jlimit (0.0f, 1.0f, act[k] * 4.0f);
+        if (glow > 0.02f)
+        {
+            g.setColour (col::gold2.withAlpha (0.3f * glow));
+            g.fillEllipse (juce::Rectangle<float> (r * 3.2f, r * 3.2f).withCentre (now));
+        }
+        fill (g, star (now, 8, r, r * 0.55f), colr, dragging == k ? col::white : col::gold, 2.0f);
+        g.setColour (col::white); g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (now));
+        g.setColour (col::white); g.setFont (font (10));
+        g.drawText (kSrcName[k], juce::Rectangle<float> (90, 12).withCentre (now.translated (0, r + 9)), juce::Justification::centred);
+    }
+    g.setColour (col::dim); g.setFont (font (9, false));
+    g.drawText ("DRAG: PLACE   WHEEL: DISTANCE   DOUBLE-CLICK: MOTION", 8, kMapH - 15, kMapW - 16, 12, juce::Justification::right);
+
+    // ---- the field settings
+    const int fx = kMapW + 24;
+    g.setColour (col::white); g.setFont (font (21));
+    g.drawText ("AKASHA", fx, 0, 160, 28, juce::Justification::centredLeft);
+    const int on = proc.orderNow.load();
+    static const char* ord[8] = { "", "1ST", "2ND", "3RD", "4TH", "5TH", "6TH", "7TH" };
+    juce::String sub = on == 0 ? juce::String ("STEREO PREVIEW")
+                     : juce::String (ord[juce::jlimit (1, 7, on)]) + juce::String (juce::CharPointer_UTF8 (" ORDER \xc2\xb7 ")) + juce::String ((on + 1) * (on + 1)) + " CH";
+    g.setColour (col::grey); g.setFont (font (13));
+    g.drawText (sub, fx + 104, 4, 260, 22, juce::Justification::centredLeft);
+
+    // ---- the plan, seen from above: you in the middle, front up
+    const juce::Point<float> pc ((float) fx + 183, 300);
+    const float R = 62;
+    g.setColour (col::tile); g.fillEllipse (juce::Rectangle<float> (R * 2 + 16, R * 2 + 16).withCentre (pc));
+    g.setColour (col::gold); g.drawEllipse (juce::Rectangle<float> (R * 2, R * 2).withCentre (pc), 1.5f);
+    g.setColour (col::off); g.drawEllipse (juce::Rectangle<float> (R, R).withCentre (pc), 1.0f);
+    fill (g, star (pc, 4, 7, 3), col::white);
+    for (int k = 0; k < ns; ++k)
+    {
+        const float az = azimuth (proc.srcX[k].load()), el = elevation (proc.srcY[k].load());
+        const float rr = R * (0.15f + 0.85f * proc.srcD[k].load()) * std::cos (el);
+        const juce::Point<float> q (pc.x - rr * std::sin (az), pc.y - rr * std::cos (az));
+        fill (g, star (q, 6, 7, 3.5f), srcColour (k), col::gold, 1.0f);
+    }
+    g.setColour (col::dim); g.setFont (font (9));
+    g.drawText ("FRONT", juce::Rectangle<float> (60, 10).withCentre ({ pc.x, pc.y - R - 14 }), juce::Justification::centred);
+
+    // ---- the sources' columns
+    const int colW = 1144 / ns;
+    for (int k = 0; k < ns; ++k)
+    {
+        const int x0 = k * colW + (colW - 4 * 61) / 2;
+        g.setColour (srcColour (k)); g.setFont (font (21));
+        g.drawText (kSrcName[k], x0, 388, 244, 28, juce::Justification::centredLeft);
+        g.setColour (col::grey); g.setFont (font (11));
+        const float dd = proc.srcD[k].load();
+        g.drawText (juce::String (juce::roundToInt (azDegForX (proc.srcX[k].load()))) + " / " + juce::String (juce::roundToInt (elDegForY (proc.srcY[k].load())))
+                    + "  D " + juce::String (dd, 2), x0, 392, 244, 24, juce::Justification::centredRight);
+    }
+}
+
+int SpacePanel::sourceAt (juce::Point<float> p) const
+{
+    using namespace tantri::field;
+    int best = -1; float bd = 24;
+    for (int k = 0; k < TantriProcessor::kSources; ++k)
+    {
+        for (auto q : { mapPoint (proc.srcX[k].load(), proc.srcY[k].load()), mapPoint (xForAzDeg (pv (k, "_az")), yForElDeg (pv (k, "_el"))) })
+            if (float d = q.getDistanceFrom (p); d < bd) { bd = d; best = k; }
+    }
+    return best;
+}
+
+void SpacePanel::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.position.x > kMapW || e.position.y > kMapH) return;
+    dragging = sourceAt (e.position);
+    if (dragging < 0) return;
+    for (auto* sfx : { "_az", "_el" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->beginChangeGesture();
+    mouseDrag (e);
+}
+void SpacePanel::mouseDrag (const juce::MouseEvent& e)
+{
+    using namespace tantri::field;
+    if (dragging < 0) return;
+    const float x = juce::jlimit (0.0f, 1.0f, e.position.x / kMapW), y = juce::jlimit (0.0f, 1.0f, 1.0f - e.position.y / kMapH);
+    juce::String pre (TantriProcessor::kSrcId[dragging]);
+    auto* az = proc.apvts.getParameter (pre + "_az");
+    auto* el = proc.apvts.getParameter (pre + "_el");
+    az->setValueNotifyingHost (az->convertTo0to1 (azDegForX (x)));
+    el->setValueNotifyingHost (el->convertTo0to1 (elDegForY (y)));
+    repaint();
+}
+void SpacePanel::mouseUp (const juce::MouseEvent&)
+{
+    if (dragging >= 0)
+        for (auto* sfx : { "_az", "_el" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->endChangeGesture();
+    dragging = -1;
+    repaint();
+}
+void SpacePanel::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (int k = sourceAt (e.position); k >= 0) motionMenu (k, motionPills[(size_t) k].get());
+}
+void SpacePanel::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    int k = sourceAt (e.position);
+    if (k < 0) return;
+    auto* prm = proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[k]) + "_dist");
+    prm->beginChangeGesture();
+    prm->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, pv (k, "_dist") - w.deltaY * 0.15f));
+    prm->endChangeGesture();
+}
+
+void SpacePanel::motionMenu (int k, juce::Component* target)
+{
+    using namespace tantri::field;
+    juce::PopupMenu m;
+    const int cur = (int) pv (k, "_motion");
+    static const char* hint[motion::Count] = { "stays where it is", "once round you, 24 s", "sways 40\xc2\xb0 either side, 8 s",
+        "up overhead and back, 16 s", "wanders slowly", "round you while it climbs, 40 s", "a figure of eight, 10 s",
+        "over your head to the other side, 14 s", "comes close and goes back, 12 s", "jumps nearby every 3 s",
+        "trembles, like wings", "one flock with every source on Boids", "its own stretch of the Lorenz attractor" };
+    for (int i = 0; i < motion::Count; ++i)
+        m.addItem (i + 1, juce::String (kMotionName[i]) + "   " + juce::String (juce::CharPointer_UTF8 (hint[i])), true, i == cur);
+    juce::Component::SafePointer<SpacePanel> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (target), [safe, k] (int r)
+    {
+        if (safe == nullptr || r < 1) return;
+        setParam (safe->proc, (juce::String (TantriProcessor::kSrcId[k]) + "_motion").toRawUTF8(), (float) (r - 1));
+        safe->repaint();
+    });
+}
+
+void SpacePanel::tick()
+{
+    for (int k = 0; k < TantriProcessor::kSources; ++k)
+    {
+        act[k] = std::max (proc.srcAct[k].load(), act[k] * 0.85f);
+        auto& tr = trails[(size_t) k];
+        tr.p[(size_t) tr.w] = mapPoint (proc.srcX[k].load(), proc.srcY[k].load());
+        tr.w = (tr.w + 1) % 48; tr.n = std::min (48, tr.n + 1);
+        // a jump round the back edge would draw a line across the map: start the trail again
+        const auto prev = tr.p[(size_t) ((tr.w + 46) % 48)], last = tr.p[(size_t) ((tr.w + 47) % 48)];
+        if (tr.n > 1 && std::abs (prev.x - last.x) > kMapW * 0.5f) { tr.n = 1; }
+    }
+    for (auto& p : motionPills) p->repaint();
+    repaint();
 }
 
 // ---------------------------------------------------------------- raga strip (3 saptaks)
@@ -372,7 +671,8 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
         { "t_dayan", "DAYAN", 1 }, { "t_bayan", "BAYAN", 1 }, { "t_syahi", "SYAHI", 1 }, { "t_glide", "GLIDE", 1 },
         { "t_press", "PRESS", 1 }, { "t_ring", "RING", 1 }, { "t_snap", "SNAP", 1 }, { "t_room", "ROOM", 1 }, { "t_level", "LEVEL", 1 },
         { "n_cycle", "CYCLE", 2 }, { "n_jawari", "JAWARI", 2 }, { "n_first", "1ST STR", 2 }, { "n_octave", "REGISTER", 2 },
-        { "n_human", "HUMAN", 2 }, { "n_width", "WIDTH", 2 }, { "n_room", "ROOM", 2 }, { "n_level", "LEVEL", 2 } };
+        { "n_human", "HUMAN", 2 }, { "n_width", "WIDTH", 2 }, { "n_room", "ROOM", 2 }, { "n_level", "LEVEL", 2 },
+        { "n_mode", "MODE", 2 }, { "n_voicing", "VOICING", 2 } };
     int idx[3] = { 0, 0, 0 };
     for (auto& k : ks)
     {
@@ -445,17 +745,37 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
     outPill.valueColour = [this] { return proc.limitDb.load() < -0.1f ? col::coral : col::white; };
 
     for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill, &midiPill, &voicesPill, &outPill }) addAndMakeVisible (*pl);
+    if (TantriProcessor::kSpatial)
+    {
+        space = std::make_unique<SpacePanel> (proc);
+        addChildComponent (*space);
+        viewPill.text = [this] { return juce::String (spaceView ? "SPACE" : "INSTRUMENT"); };
+        viewPill.valueColour = [this] { return spaceView ? col::gold2 : col::white; };
+        viewPill.onClick = [this] { setSpaceView (! spaceView); };
+        addAndMakeVisible (viewPill);
+    }
     setSize (1200, 780);
 }
 Canvas::~Canvas() = default;
+
+void Canvas::setSpaceView (bool on)
+{
+    spaceView = on && space != nullptr;
+    for (auto* c : { (juce::Component*) &sitarTile, (juce::Component*) &tablaTile, (juce::Component*) &tanpuraTile }) c->setVisible (! spaceView);
+    for (auto& k : knobs) k->setVisible (! spaceView);
+    if (space) space->setVisible (spaceView);
+    resized(); repaint();
+}
 
 void Canvas::resized()
 {
     sitarTile.setBounds (tileBounds (0)); tablaTile.setBounds (tileBounds (1)); tanpuraTile.setBounds (tileBounds (2));
     strip.setBounds (28, 696, 1144, 62);
+    if (space) space->setBounds (28, 76, 1144, 604);
     int x = 150;
-    for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill })
+    for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill, &viewPill })
     {
+        if (pl == &viewPill && space == nullptr) continue;
         int w = std::max (60, pl->preferredWidth() + 16);
         pl->setBounds (x, 26, w, 28); x += w + 14;
     }
@@ -463,14 +783,22 @@ void Canvas::resized()
     voicesPill.setBounds (1172 - vw, 26, vw, 28);
     int mw = midiPill.preferredWidth() + 8;
     midiPill.setBounds (voicesPill.getX() - 24 - mw, 26, mw, 28);
-    outPill.setBounds (1172 - 176, 452, 176, 28);
+    // the output meter sits in the header, left of MIDI (both views)
+    outPill.setBounds (std::max (x, midiPill.getX() - 24 - 176), 26, 176, 28);
 }
 
 void Canvas::paint (juce::Graphics& g)
 {
     g.fillAll (col::bg);
     g.setColour (col::white); g.setFont (font (24));
-    g.drawText ("TANTRI", 28, 22, 120, 36, juce::Justification::centredLeft);
+    if (TantriProcessor::kSpatial)
+    {
+        g.drawText ("TANTRI", 28, 16, 120, 30, juce::Justification::centredLeft);
+        g.setColour (col::gold2); g.setFont (font (10));
+        g.drawText (TantriProcessor::kFx ? "AKASHA FX" : "AKASHA", 29, 44, 120, 12, juce::Justification::centredLeft);
+    }
+    else g.drawText ("TANTRI", 28, 22, 120, 36, juce::Justification::centredLeft);
+    if (spaceView) return;
     struct N { const char* a; const char* b; };
     static const N names[3] = { { "SITAR 22", "WAVEGUIDE \xc2\xb7 JAWARI \xc2\xb7 13 TARAF" }, { "TABLA 16", "MODAL \xc2\xb7 TEENTAAL" }, { "TANPURA 4", "" } };
     for (int i = 0; i < 3; ++i)
@@ -485,7 +813,13 @@ void Canvas::paint (juce::Graphics& g)
         if (i == 2)
         {
             static const char* fn[5] = { "PA", "PA", "MA", "NI", "ni" };
-            sub = juce::String (fn[juce::jlimit (0, 4, proc.tanpuraFirst.load())]) + " SA SA sa";
+            const char* nm[4] = { fn[juce::jlimit (0, 4, proc.tanpuraFirst.load())], "SA", "SA", "sa" };
+            if ((int) getParam (proc, "n_mode") == 1)
+            {
+                sub = "DRONE";
+                for (int k = 0; k < 4; ++k) if (droneWants (proc, k)) sub << " " << nm[k];
+            }
+            else sub = juce::String (nm[0]) + " SA SA sa";
         }
         g.setColour (col::grey); g.setFont (font (13));
         g.drawText (sub, juce::Rectangle<float> (x + w + 8, 457, 300, 22), juce::Justification::centredLeft);
@@ -512,6 +846,8 @@ void Canvas::tick()
     for (int i = 0; i < 4; ++i) tanpuraTile.act[i] = std::max (proc.tanpuraAct[i].load(), tanpuraTile.act[i] * 0.9f);
     sitarTile.repaint(); tablaTile.repaint(); tanpuraTile.repaint(); strip.repaint();
     voicesPill.repaint(); ragaPill.repaint(); saPill.repaint(); outPill.repaint();
+    if (spaceView && space) space->tick();
+    else repaint (800, 450, 400, 34);   // the tanpura's subtitle (drone notes)
     static int lastFirst = -1;
     if (proc.tanpuraFirst.load() != lastFirst) { lastFirst = proc.tanpuraFirst.load(); repaint (800, 450, 400, 34); }
 }

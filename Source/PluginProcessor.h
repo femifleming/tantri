@@ -4,6 +4,14 @@
 #include "Sitar.h"
 #include "Tabla.h"
 #include "Tanpura.h"
+#include "Space.h"
+
+#ifndef TANTRI_SPATIAL
+ #define TANTRI_SPATIAL 0
+#endif
+#ifndef TANTRI_FX
+ #define TANTRI_FX 0
+#endif
 
 class TantriProcessor : public juce::AudioProcessor, private juce::AudioProcessorValueTreeState::Listener
 {
@@ -19,7 +27,7 @@ public:
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    const juce::String getName() const override { return "Tantri"; }
+    const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
@@ -54,11 +62,24 @@ public:
     std::atomic<float> outPeak { 0 }, limitDb { 0 };   // pre-limiter peak, limiter gain reduction (dB, <= 0)
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+
+    // ---- Tantri Akasha (spatial builds): the sources placed in the space
+    static constexpr bool kSpatial = TANTRI_SPATIAL != 0, kFx = TANTRI_FX != 0;
+    static constexpr int kSources = TANTRI_FX ? 4 : 3;          // sitar, tabla, tanpura (+ input)
+    static constexpr const char* kSrcId[4] = { "sitar", "tabla", "tanpura", "input" };
+    std::atomic<float> srcX[4] {}, srcY[4] {}, srcD[4] {}, srcAct[4] {};   // where each source is now (play-area units)
+    std::atomic<int> orderNow { 0 };                            // 0 = stereo preview
+    bool droning (int i) const { return tanpuraDrone[i].load(); }
+    std::atomic<bool> tanpuraDrone[4] {};
     static juce::StringArray scaleNames();
     int scaleIndex() const { return (int) apvts.getRawParameterValue ("scale")->load(); }
     tantri::ActiveScale activeScale() const { return tantri::makeScale (scaleIndex(), getTuning()); }
 
 private:
+    static BusesProperties buses();
+    void processSpatial (juce::AudioBuffer<float>&, juce::MidiBuffer&);
+    void updateMeters();
+    static constexpr int kChunk = 64;
     void parameterChanged (const juce::String& id, float v) override;
     void handleMidi (const juce::MidiMessage& m);
     void readParams();
@@ -76,6 +97,16 @@ private:
     float tablaPressure = 0;
     double sr = 48000;
     juce::LinearSmoothedValue<float> master;
+
+    // spatial state
+    tantri::LimiterN limitN;
+    tantri::field::Encoder enc[4], encRev[2];
+    tantri::field::Flock flock;
+    double tau[4] {};
+    int lastMotion[4] { -1, -1, -1, -1 };
+    int orderCap = ambi::kMaxOrder;
+    juce::AudioBuffer<float> srcBuf, inBuf, fold;
+    std::vector<float> scrL, scrR;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TantriProcessor)
 };

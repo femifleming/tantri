@@ -17,6 +17,11 @@ struct TanpuraParams
     int octave = 0;         // -1, 0, +1
     float width = 0.6f;
     float level = 0.6f;
+    // drone: the strings sound on and on instead of being plucked in turn
+    int mode = 0;           // 0 cycle (plucked), 1 drone (sustained, no decay)
+    int voicing = 1;        // 0 single note, 1 chord
+    int note = 1;           // single: which string (0 first, 1 Sa, 2 upper-beating Sa, 3 kharaj sa)
+    int chordMask = 0xF;    // chord: bit i = string i drones
 };
 
 class Tanpura
@@ -31,6 +36,8 @@ public:
                             { 1395, 28, 0.36f }, { 1840, 30, 0.3f }, { 2400, 32, 0.24f }, { 3120, 35, 0.18f } });
         dcL.prepare (fs); dcR.prepare (fs);
         lp.lowpass (fs, 9000, 0.7);
+        nzK = float (1.0 - std::exp (-2.0 * kPi * 2500.0 / fs));
+        pulseLen = float (0.0007 * fs);
         timer = 0.3; step = 0;
         configured = false;
     }
@@ -61,8 +68,21 @@ public:
         for (int i = 0; i < 4; ++i)
         {
             auto& s = str[i];
-            float y = s.a.tick (coupling) + 0.8f * s.b.tick (coupling);
-            force += y;
+            float ex = 0.0f;
+            if (s.exG > 0.0f)
+            {
+                // drone excitation: a "bow" - one soft bipolar pulse per period of the string's own
+                // pitch (stick-slip, as a bow makes), a trace of noise; its gain is held by control()
+                // so the level never decays while the jawari keeps the harmonics turning
+                s.ph += s.inc;
+                if (s.ph >= 1.0) { s.ph -= 1.0; s.pk = 0; s.plen = pulseLen * (1.0f + 0.15f * prm.human * rng.next()); }
+                float p = 0.0f;
+                if (s.pk < s.plen) { p = std::sin (2.0f * float (kPi) * s.pk / s.plen); s.pk += 1.0f; }
+                s.nz += (rng.next() - s.nz) * nzK;
+                ex = s.exG * (p + 0.03f * s.nz);
+            }
+            float y = s.a.tick (coupling + ex) + 0.8f * s.b.tick (coupling + 0.7f * ex);
+                        force += y;
             float pan = float (i - 1.5) / 1.5f * prm.width * 0.8f;
             l += y * (1 - pan); r += y * (1 + pan);
             s.level = s.level * 0.9995f + 0.0005f * y * y;
@@ -75,13 +95,19 @@ public:
     }
 
     void setGate (bool g) { gate = g; }
+    bool droning (int i) const { return str[i].fade > 0.01f; }
     float stringLevel (int i) const { return std::min (1.0f, std::sqrt (str[i].level) * 25.0f); }
     float pluckFlash[4] {};
     double stringHz[4] {};
     int lastPlucked = -1;
 
 private:
-    struct Str { ContactString a, b; float level = 0; };
+    struct Str
+    {
+        ContactString a, b; float level = 0;
+        float exG = 0, lg = -7.0f, fade = 0, nz = 0, breath = 0, pk = 1e9f, plen = 30;   // drone state
+        double ph = 0, inc = 0;
+    };
 
     void configure()
     {
@@ -126,10 +152,32 @@ private:
             drift[i] += (rng.next() * 0.02 - drift[i] * 0.002);
             double cents = std::clamp (drift[i], -1.2, 1.2);
             double f = stringHz[i] * std::pow (2.0, cents / 1200.0) * std::pow (2.0, ((i == 2) ? 0.9 : (i == 1 ? -0.4 : 0.0)) / 1200.0);
+            str[i].inc = f / fs;
             str[i].a.setFreq (f);
             str[i].b.setFreq (f * std::pow (2.0, 0.7 / 1200.0));
         }
-        if (! (prm.on || gate)) { timer = 0.05; step = 0; return; }
+        const bool running = prm.on || gate;
+        // drone: each chosen string is kept sounding at a steady level (a slow "breath" from HUMAN);
+        // a string that leaves the drone simply rings out
+        int nDrone = 0;
+        for (int i = 0; i < 4; ++i)
+            nDrone += (prm.voicing == 0 ? i == prm.note : ((prm.chordMask >> i) & 1) != 0) ? 1 : 0;
+        const float perString = kDroneRms * std::pow (4.0f / float (std::max (1, nDrone)), 0.25f);   // fewer strings: each a little louder
+        for (int i = 0; i < 4; ++i)
+        {
+            auto& s = str[i];
+            const bool want = running && prm.mode == 1
+                              && (prm.voicing == 0 ? i == prm.note : ((prm.chordMask >> i) & 1) != 0);
+            s.fade = want ? std::min (1.0f, s.fade + float (dt) / 1.2f) : std::max (0.0f, s.fade - float (dt) / 0.25f);
+            if (s.fade <= 0.0f) { s.exG = 0.0f; s.lg = -7.0f; continue; }
+            s.breath += (rng.next() * 0.6f - s.breath * 0.15f) * float (dt);
+            const float tgt = perString * (i == 3 ? 1.1f : 1.0f) * s.fade * (1.0f + 0.35f * prm.human * std::clamp (s.breath, -1.0f, 1.0f));
+            const float rms = std::sqrt (s.level) + 1.0e-7f;
+            s.lg = std::clamp (s.lg + 0.04f * std::clamp (std::log (tgt / rms), -2.0f, 2.0f), -12.0f, 0.5f);
+            s.exG = std::exp (s.lg) * s.fade;
+        }
+        if (prm.mode == 1 && running) { timer = 0.05; step = 0; return; }   // no plucking while droning
+        if (! running) { timer = 0.05; step = 0; return; }
         timer -= dt;
         if (timer <= 0)
         {
@@ -159,7 +207,8 @@ private:
     ActiveScale scale = makeScale (0, parseRaga (kRagas[0].spec));
     unsigned scaleVersion = ~0u;
     Rng rng;
-    float coupling = 0;
+    float coupling = 0, nzK = 0.3f, pulseLen = 34;
+    static constexpr float kDroneRms = 0.018f;   // per-string level held by the drone (set from --drone)
     int step = 0;
     bool gate = false, configured = false;
     unsigned ctl = 0;

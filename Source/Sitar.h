@@ -147,7 +147,7 @@ public:
         float chs = chik[0].tick (bridge * 0.01f) + chik[1].tick (bridge * 0.008f);
         float chikOut = chs * prm.chikari * 1.6f;
         // taraf driven by the bridge (all strings share it)
-        float drive = (bridge + chs * 0.5f) * 0.012f;
+        float drive = (bridge + chs * 0.5f) * 0.012f + extDrive;
         float tl = 0, tr = 0, tsum = 0;
         for (int i = 0; i < kTaraf; ++i)
         {
@@ -171,6 +171,7 @@ public:
 
     float activity[ActiveScale::kMax] {};   // per scale degree
     float chikFlash = 0;
+    float extDrive = 0;     // Tantri Akasha FX: the input sounding the taraf (sympathetic strings)
     double tarafHz[kTaraf] {};
 
 private:

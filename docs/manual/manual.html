@@ -49,8 +49,9 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   <div class="rule" style="margin-top:8mm"></div>
   <div class="fig" style="margin-top:4mm"><img src="img/ui.png"></div>
   <p class="cap">THE TANTRI WINDOW: THE 22-SHRUTI STAR, THE TEENTAAL CYCLE AND THE TANPURA FLOWER ON TOP, THE CONTROLS BELOW, THE RAGA STRIP AT THE BOTTOM.</p>
-  <p style="margin-top:3mm">Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a ratio from the chosen scale: a raga's shrutis, a Carnatic melakarta, or a microtonal system. Incoming MIDI is quantised to that scale.</p>
-  <div class="foot"><span>TANTRI 1.0 · MANUAL</span><span>VST3 · AU · VST2 · STANDALONE · MACOS</span></div>
+  <p style="margin-top:3mm"><b>Three plug-ins.</b> <b>Tantri</b> is the stereo instrument. <b>Tantri Akasha</b> (ākāśa, "space", the element that carries sound) is the same instrument placed in space: sitar, tabla and tanpura become Ambisonic sources that you place and set moving. <b>Tantri Akasha FX</b> is that as an effect: whatever comes in becomes a fourth source in the space and sets the sitar's sympathetic strings ringing.</p>
+  <p>Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a ratio from the chosen scale: a raga's shrutis, a Carnatic melakarta, or a microtonal system. Incoming MIDI is quantised to that scale.</p>
+  <div class="foot"><span>TANTRI 1.1 · MANUAL</span><span>VST3 · AU · VST2 · STANDALONE · MACOS · WINDOWS</span></div>
 </div>
 
 <!-- 2 contents + quick start -->
@@ -61,11 +62,12 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
     <tr><td class="k">2</td><td>Tuning: Sa, the 22 shrutis, ragas, the shruti star</td><td style="text-align:right">3</td></tr>
     <tr><td class="k">3</td><td>Sitar: playing, meend, gamak, taraf, chikari</td><td style="text-align:right">4</td></tr>
     <tr><td class="k">4</td><td>Tabla: bols and strokes</td><td style="text-align:right">5</td></tr>
-    <tr><td class="k">5</td><td>Tanpura: the drone</td><td style="text-align:right">6</td></tr>
-    <tr><td class="k">6</td><td>How the strings work: waveguides and the jawari bridge</td><td style="text-align:right">7</td></tr>
-    <tr><td class="k">7</td><td>How the tabla works: modal synthesis</td><td style="text-align:right">8–9</td></tr>
-    <tr><td class="k">8</td><td>The output stage</td><td style="text-align:right">10</td></tr>
-    <tr><td class="k">9</td><td>Parameter reference</td><td style="text-align:right">11</td></tr>
+    <tr><td class="k">5</td><td>Tanpura: the cycle, and the drone (single note or chord, no decay)</td><td style="text-align:right">6–7</td></tr>
+    <tr><td class="k">6</td><td>How the strings work: waveguides and the jawari bridge</td><td style="text-align:right">8</td></tr>
+    <tr><td class="k">7</td><td>How the tabla works: modal synthesis</td><td style="text-align:right">9–10</td></tr>
+    <tr><td class="k">8</td><td>The output stage</td><td style="text-align:right">11</td></tr>
+    <tr><td class="k">9</td><td>Tantri Akasha: space, motions, Ambisonics, the FX</td><td style="text-align:right">12–13</td></tr>
+    <tr><td class="k">10</td><td>Parameter reference</td><td style="text-align:right">14</td></tr>
   </table>
 
   <h2 style="margin-top:8mm">1 · QUICK START</h2><div class="rule"></div>
@@ -212,7 +214,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <h3>First string</h3>
       <p><b>AUTO</b> picks Pa if the raga has Pa, otherwise Ma, otherwise Ni, the way a musician retunes the first string for ragas such as Marwa or Malkauns. You can also force Pa, Ma, Ni or komal ni. Click the top petal of the flower to step through the choices. Its pitch is always the raga's own shruti.</p>
       <h3>The flower</h3>
-      <p>Each petal is one string and lights up while it sounds. The ring of gold and brown blades around the flower moves with the drone. Click the centre to start or stop it.</p>
+      <p>Each petal is one string and lights up while it sounds. The ring of gold and brown blades around the flower moves with the drone. Click the centre to start or stop it. Set <b>MODE</b> to <em>Drone</em> and the strings sound on and on instead (next page).</p>
     </div>
     <div>
       <table>
@@ -224,12 +226,40 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
         <tr><td class="k">HUMAN</td><td>timing and force variation of the plucking hand</td></tr>
         <tr><td class="k">WIDTH</td><td>stereo spread of the four strings</td></tr>
         <tr><td class="k">ROOM / LEVEL</td><td>reverb send and level</td></tr>
+        <tr><td class="k">MODE</td><td>Cycle (plucked in turn) · Drone (sustained, no decay)</td></tr>
+        <tr><td class="k">VOICING</td><td>drone: Single note · Chord</td></tr>
       </table>
       <div class="fig"><img src="img/tiles.png" style="width:100%; object-fit:cover; object-position:right; height:48mm"></div>
       <p class="cap">THE THREE TILES. RIGHT: THE TANPURA FLOWER WITH THE SOUNDING STRINGS LIT.</p>
     </div>
   </div>
   <div class="foot"><span>TANTRI MANUAL</span><span>6</span></div>
+</div>
+
+<!-- 6b drone -->
+<div class="page">
+  <h2>5 · TANPURA <span>THE DRONE: NO DECAY</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <p>With <b>MODE</b> on <em>Drone</em> the tanpura stops plucking: the chosen strings sound continuously and never decay. You do not need MIDI for it; click the flower's centre (or the <b>Tanpura on</b> parameter) and it plays until you stop it. A held note on the tanpura channel also starts it.</p>
+      <h3>One note or a chord</h3>
+      <p><b>VOICING</b> chooses how many strings drone.</p>
+      <ul>
+        <li><b>Single</b>: one string. Click a petal to choose it: the first string (Pa, Ma, Ni or komal ni, from 1ST STR), Sa, the second Sa, or kharaj sa.</li>
+        <li><b>Chord</b>: any of the four strings together. Click petals to add or remove strings. All four is the full tanpura chord, first string with two beating Sas and the low sa; Pa with kharaj sa alone is the open fifth.</li>
+      </ul>
+      <p>Strings that are not in the drone are drawn dark; the droning ones carry a gem. The tanpura title shows which notes drone. When a string leaves the drone it rings out naturally; a string that joins fades in over about a second.</p>
+      <h3>How it sustains</h3>
+      <p>Each droning string is bowed rather than plucked: once per period of its own pitch it receives a soft bipolar push next to the bridge, the stick-slip that a bow gives a string, plus a trace of noise. Because the push is locked to the string's period it drives every harmonic coherently, and the string keeps its own resonances, losses and jawari. A slow loop measures each string's level and sets the push so the level stays where it is, which is why nothing decays. The jawari thread keeps working, so the harmonics still turn and swirl.</p>
+      <p><b>HUMAN</b> lets each string breathe slowly in level (up to about ±3 dB) and varies the push a little. <b>JAWARI</b>, <b>REGISTER</b>, <b>1ST STR</b>, <b>WIDTH</b> and the slow pitch drift work as in the cycle. <b>CYCLE</b> is not used while droning.</p>
+      <p>Measured over 60 s (<code>TantriTest --drone</code>): the level stays within about ±3 dB of its average (the HUMAN breath) with no downward trend, and sits within a few dB of the plucked cycle.</p>
+    </div>
+    <div>
+      <div class="fig"><img src="img/drone.png"></div>
+      <p class="cap">THE FLOWER IN DRONE MODE, CHORD VOICING: PA, SA AND KHARAJ SA DRONE; THE SECOND SA IS LEFT OUT (DARK).</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>7</span></div>
 </div>
 
 <!-- 7 waveguide -->
@@ -259,7 +289,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <p>Fractional-delay interpolation low-passes slightly every time a wave passes, and a 138 Hz string passes 138 times a second. At the host rate that would eat the jawari's high partials. At 2× the loss falls above the audible band, and the new partials the bridge creates do not alias.</p>
     </div>
   </div>
-  <div class="foot"><span>TANTRI MANUAL</span><span>7</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>8</span></div>
 </div>
 
 <!-- 8 modal 1 -->
@@ -284,7 +314,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   </div>
   <div class="fig" style="padding:2mm"><svg id="raman" viewBox="0 0 760 170" width="100%"></svg></div>
   <p class="cap">MODE FREQUENCIES (×f₀) OF THE DAYAN. TOP: AN UNLOADED MEMBRANE. BOTTOM: WITH THE SYAHI, GROUPED ON 1–5 × f₀. THE SYAHI KNOB MOVES EVERY MODE CONTINUOUSLY BETWEEN THE TWO.</p>
-  <div class="foot"><span>TANTRI MANUAL</span><span>8</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>9</span></div>
 </div>
 
 <!-- 9 modal 2 -->
@@ -325,7 +355,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <p class="cap">TUN VERSUS NA ON THE SAME HEAD: TUN IS DOMINATED BY THE FUNDAMENTAL; NA HAS ITS FUNDAMENTAL DAMPED, SO THE HARMONICS RING.</p>
     </div>
   </div>
-  <div class="foot"><span>TANTRI MANUAL</span><span>9</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>10</span></div>
 </div>
 
 <!-- 10 output -->
@@ -346,15 +376,82 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
     </div>
     <div>
       <p>After the mix sits a stereo-linked <b>look-ahead peak limiter</b> with a −1 dBFS ceiling. It watches the next 1.5 ms of audio and reaches the gain needed for the loudest coming sample <i>before</i> that sample leaves, so the output never exceeds the ceiling and nothing is clipped or saturated. The 1.5 ms of latency is reported to the host for compensation.</p>
-      <p>The <b>OUT</b> readout beside the tanpura title shows the peak before the limiter. When the limiter acts, it adds <span style="color:var(--coral); font-weight:700">LIMIT x.x</span> with the gain reduction in dB. In practice that only happens with all level knobs and the master turned up, or with twelve notes struck at full velocity in the same instant.</p>
+      <p>The <b>OUT</b> readout in the header shows the peak before the limiter. When the limiter acts, it adds <span style="color:var(--coral); font-weight:700">LIMIT x.x</span> with the gain reduction in dB. In practice that only happens with all level knobs and the master turned up, or with twelve notes struck at full velocity in the same instant.</p>
     </div>
   </div>
-  <div class="foot"><span>TANTRI MANUAL</span><span>10</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>11</span></div>
+</div>
+
+<!-- akasha 1 -->
+<div class="page tight">
+  <h2>9 · TANTRI AKASHA <span>THE INSTRUMENT IN SPACE</span></h2><div class="rule"></div>
+  <div class="fig"><img src="img/space.png" style="height:92mm; object-fit:cover; object-position:top"></div>
+  <p class="cap">THE SPACE VIEW (VIEW: SPACE IN THE HEADER). TOP LEFT THE SPHERE UNROLLED, TOP RIGHT THE FIELD AND THE PLAN FROM ABOVE, BELOW THEM EACH SOURCE'S PLACE AND MOTION.</p>
+  <div class="cols">
+    <div>
+      <p>Tantri Akasha is Tantri with an Ambisonics output. The sitar, the tabla and the tanpura are three <b>sources</b>, each with a place in the sphere round the listener and, if you like, a motion of its own. It uses the same space as <b>openfield</b> and the other spatial instruments: the same encoder, the same distance model and the same twelve motions, including the flock and the Lorenz attractor.</p>
+      <h3>The map</h3>
+      <p>The large tile is the sphere unrolled: left to right goes once round you (front in the middle, behind at both edges), bottom to top from 45° below to overhead. The gold line is the horizon. Each source is a star, larger when it is near. The small octagon is its home and the line shows how far its motion has carried it. <b>Drag</b> a star to place it, <b>scroll</b> over it to change its distance, <b>double-click</b> it to choose a motion. The circle on the right is the same scene seen from above.</p>
+      <h3>Output</h3>
+      <p>ACN channel order, SN3D normalisation (AmbiX), 1st to 7th order. As a VST3 or VST2 it offers up to 64 channels and as an AU 3rd order (16); the <b>ORDER</b> knob sets how many are used. Put a decoder or binaural renderer (IEM, SPARTA) after it. On a stereo track and in the desktop app it plays a stereo preview, the first order folded to left and right.</p>
+    </div>
+    <div>
+      <h3>Distance</h3>
+      <p>Distance changes four things, as in openfield. <b>ROLLOFF</b>: how fast the level falls (at 50 %: −6 dB at 0.35, about −30 dB at the far edge). <b>AIR</b>: far sounds lose their top. <b>SPREAD</b>: near sounds are wide (each source is a stereo pair encoded as two directions), far ones a point. <b>NEAR</b>: inside this radius the higher orders fade, so a sound at your head is all round you; <b>BLUR</b> does the same to far sounds.</p>
+      <h3>The scene</h3>
+      <p><b>TURN</b> and <b>TILT</b> rotate the whole scene, <b>SPEED</b> makes every motion faster or slower. The room (the shared reverb) is encoded wide, high and diffuse, so it surrounds the sources instead of sitting at one place.</p>
+      <h3>Output stage</h3>
+      <p>The look-ahead limiter of chapter 8 works on all channels at once, with one gain taken from the loudest, so the image never tilts while it limits. Measured at 7th order with every level at maximum and every source flying: never above −1 dBFS.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>12</span></div>
+</div>
+
+<!-- akasha 2 -->
+<div class="page">
+  <h2>9 · TANTRI AKASHA <span>MOTIONS · THE FX</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <h3>Motions</h3>
+      <p>Every motion starts exactly where the source was placed, and each source has its own direction and small differences of rate and path, so two sources with the same motion never move as one. <b>RATE</b> (0.25–4×) is the source's own speed.</p>
+      <table>
+        <tr><th>MOTION</th><th>WHAT IT DOES (AT 1×)</th></tr>
+        <tr><td class="k">None</td><td>stays where it is</td></tr>
+        <tr><td class="k">Orbit</td><td>once round you in 24 s</td></tr>
+        <tr><td class="k">Swing</td><td>sways ±40° either side, 8 s</td></tr>
+        <tr><td class="k">Rise</td><td>up overhead and back, 16 s</td></tr>
+        <tr><td class="k">Drift</td><td>wanders slowly in direction and height</td></tr>
+        <tr><td class="k">Spiral</td><td>round you while climbing and coming down, 40 s</td></tr>
+        <tr><td class="k">Figure 8</td><td>a figure of eight in front of its place, 10 s</td></tr>
+        <tr><td class="k">Arc</td><td>over your head to the opposite side and back, 14 s</td></tr>
+        <tr><td class="k">Approach</td><td>comes close and goes back, 12 s</td></tr>
+        <tr><td class="k">Hop</td><td>jumps to a new place nearby every 3 s, with a short glide</td></tr>
+        <tr><td class="k">Flutter</td><td>small quick trembling, like wings</td></tr>
+        <tr><td class="k">Boids</td><td>every source on Boids is a bird of one flock: cohesion, separation, alignment, a pull home and a little wandering</td></tr>
+        <tr><td class="k">Lorenz</td><td>its own stretch of the Lorenz attractor (σ 10, ρ 28, β 8/3): two wings round you, height and distance</td></tr>
+      </table>
+      <p>The default puts the sitar ahead, the tabla front right, and the tanpura front left, drifting.</p>
+    </div>
+    <div>
+      <h3>Tantri Akasha FX</h3>
+      <p>The FX build goes on an audio track (or after another instrument). Its stereo input becomes a fourth source, <b>INPUT</b>, with its own place and motion, sent a little into the room. It still plays MIDI and the tanpura still drones, so you can put a drone or a sitar line round the sound you are processing.</p>
+      <p><b>SYMPATHY</b> sends the input into the sitar's 13 <b>taraf</b> strings, tuned to the scale. Wherever the input has energy near a note of the raga, those strings ring in sympathy, as they do on a real sitar when someone plays nearby; their sound comes from the sitar's place. <b>INPUT</b> is the level of the input itself in the space (turn it down to hear only the sympathetic resonance).</p>
+      <h3>Hosts</h3>
+      <ul>
+        <li><b>REAPER</b>: put the plug-in on a track with 16 (3rd order) or more channels, then a decoder. REAPER offers a VST3 the track's width as plain channels; Tantri Akasha takes it and sends the highest order that fits.</li>
+        <li><b>Ableton Live and other stereo hosts</b>: the stereo preview. For true spatial playback use a host with multichannel tracks.</li>
+        <li><b>Logic</b>: the AU is 3rd order (16 channels).</li>
+      </ul>
+      <h3>Automation</h3>
+      <p>Every place (direction, height, distance), motion and rate is a host parameter, as are all field settings, so the scene can be automated or driven from a controller.</p>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>13</span></div>
 </div>
 
 <!-- 11 reference -->
 <div class="page ref">
-  <h2>9 · PARAMETER REFERENCE</h2><div class="rule"></div>
+  <h2>10 · PARAMETER REFERENCE</h2><div class="rule"></div>
   <div class="cols">
     <div>
       <h3>Global</h3>
@@ -392,6 +489,18 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
         <tr><td class="k">Jawari · Human · Width</td><td>0–100 %</td></tr>
         <tr><td class="k">1st string</td><td>Auto · Pa · Ma · Ni · ni</td></tr>
         <tr><td class="k">Register</td><td>Low · Middle · High</td></tr>
+        <tr><td class="k">Mode</td><td>Cycle · Drone</td></tr>
+        <tr><td class="k">Drone voicing · note</td><td>Single · Chord; 1st string · Sa · Sa (2nd) · kharaj sa</td></tr>
+        <tr><td class="k">Drone chord strings</td><td>four switches, one per string</td></tr>
+      </table>
+      <h3>Akasha (spatial builds)</h3>
+      <table>
+        <tr><td class="k">Per source: direction · height · distance</td><td>−180–180° · −45–90° · 0–100 %</td></tr>
+        <tr><td class="k">Per source: motion · rate</td><td>13 motions · 0.25–4×</td></tr>
+        <tr><td class="k">Order</td><td>1st–7th (4–64 channels)</td></tr>
+        <tr><td class="k">Rolloff · Air · Spread · Blur</td><td>0–100 %</td></tr>
+        <tr><td class="k">Near · Speed · Turn · Tilt</td><td>2–50 % · 0.1–4× · ±180° · ±90°</td></tr>
+        <tr><td class="k">FX: Input · Sympathy</td><td>input level · input into the taraf</td></tr>
       </table>
       <h3>Performance</h3>
       <p>12 sitar voices at once, plus the tabla and the tanpura, use about 7% of one Apple M2 core at 48 kHz. All 22 shrutis were measured in three octaves of four ragas: worst error 0.3 cents without jawari and 1.5 cents with it.</p>
@@ -399,7 +508,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <p style="font-size:8.6pt">C. V. Raman, <i>The Indian musical drums</i>, Proc. Indian Acad. Sci. A1 (1934) · J. O. Smith, <i>Physical Audio Signal Processing</i> (digital waveguides) · J. R. Pierce &amp; S. A. Van Duyne, <i>A passive nonlinear digital filter design…</i>, JASA 101 (1997) · S. Siddiq, <i>A physical model of the nonlinear sitar string</i>, Archives of Acoustics 37 (2012) · V. Välimäki et al., <i>Discrete-time modelling of musical instruments</i>, Rep. Prog. Phys. 69 (2006).</p>
     </div>
   </div>
-  <div class="foot"><span>TANTRI MANUAL</span><span>11</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>14</span></div>
 </div>
 
 <script>

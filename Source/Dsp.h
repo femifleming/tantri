@@ -435,4 +435,58 @@ private:
     int look = 72, size = 128, mask = 127;
     float ceiling = 0.89f, atk = 0.1f, rel = 0.001f, g = 1.0f, minGain = 1.0f;
 };
+
+// The same look-ahead ceiling for many channels (Ambisonics): one gain for all of them, taken from
+// the loudest, so the spatial image never tilts while it limits
+class LimiterN
+{
+public:
+    void prepare (double fs, int channels, double lookMs = 1.5, double releaseMs = 150.0, float ceilingDb = -1.0f)
+    {
+        nch = std::max (1, channels);
+        look = std::max (8, int (fs * lookMs * 0.001));
+        size = nextPow2 (look + 4); mask = size - 1;
+        dl.assign ((size_t) (size * nch), 0.0f);
+        pk.assign ((size_t) size, 0.0f);
+        dqIdx.assign ((size_t) size, 0); dqHead = dqTail = 0;
+        ceiling = std::pow (10.0f, ceilingDb / 20.0f);
+        atk = 1.0f - std::exp (-5.0f / float (look));
+        rel = 1.0f - float (std::exp (-1.0 / (fs * releaseMs * 0.001)));
+        g = 1.0f; w = 0; minGain = 1.0f;
+    }
+    int latency() const { return look; }
+    int channels() const { return nch; }
+    // x[c] for c < n (n <= channels()), in place
+    inline void process (float* const* x, int n, int i)
+    {
+        float a = 0;
+        const int base = (int) ((w & mask) * nch);
+        for (int c = 0; c < nch; ++c)
+        {
+            const float v = c < n ? x[c][i] : 0.0f;
+            dl[(size_t) (base + c)] = v;
+            a = std::max (a, std::fabs (v));
+        }
+        pk[(size_t) (w & mask)] = a;
+        while (dqTail != dqHead && pk[(size_t) (dqIdx[(size_t) ((dqTail - 1) & mask)] & mask)] <= a) --dqTail;
+        dqIdx[(size_t) (dqTail & mask)] = w; ++dqTail;
+        while (dqIdx[(size_t) (dqHead & mask)] <= w - look - 1) ++dqHead;
+        float peak = pk[(size_t) (dqIdx[(size_t) (dqHead & mask)] & mask)];
+        float target = peak > ceiling ? ceiling / peak : 1.0f;
+        g += (target - g) * (target < g ? atk : rel);
+        const int rd = (int) (((w - look) & mask) * nch);
+        ++w;
+        float o = 0;
+        for (int c = 0; c < n; ++c) { x[c][i] = dl[(size_t) (rd + c)] * g; o = std::max (o, std::fabs (x[c][i])); }
+        if (o > ceiling) { float s = ceiling / o; for (int c = 0; c < n; ++c) x[c][i] *= s; }
+        minGain = std::min (minGain, g);
+    }
+    float takeMinGain() { float m = minGain; minGain = 1.0f; return m; }
+private:
+    std::vector<float> dl, pk;
+    std::vector<int64_t> dqIdx;
+    int64_t w = 0, dqHead = 0, dqTail = 0;
+    int look = 72, size = 128, mask = 127, nch = 2;
+    float ceiling = 0.89f, atk = 0.1f, rel = 0.001f, g = 1.0f, minGain = 1.0f;
+};
 } // namespace tantri

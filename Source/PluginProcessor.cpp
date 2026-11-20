@@ -83,11 +83,86 @@ juce::AudioProcessorValueTreeState::ParameterLayout TantriProcessor::createLayou
     F ("n_width", "Tanpura width", unit, 0.6f, pct);
     F ("n_room", "Tanpura room", unit, 0.3f, pct);
     F ("n_level", "Tanpura level", lev, 0.5f, db);
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "n_mode", 1 }, "Tanpura mode", juce::StringArray { "Cycle", "Drone" }, 0));
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "n_voicing", 1 }, "Drone voicing", juce::StringArray { "Single", "Chord" }, 1));
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "n_note", 1 }, "Drone note",
+                                        juce::StringArray { "1st string", "Sa", "Sa (2nd)", "Kharaj sa" }, 1));
+    for (int i = 0; i < 4; ++i)
+    {
+        static const char* nm[4] = { "Drone chord 1st string", "Drone chord Sa", "Drone chord Sa (2nd)", "Drone chord kharaj sa" };
+        p.push_back (std::make_unique<APB> (juce::ParameterID { "n_dr" + juce::String (i + 1), 1 }, nm[i], true));
+    }
+
+   #if TANTRI_SPATIAL
+    // ---- the space (Tantri Akasha): one place and motion per source, openfield's distance model
+    {
+        using namespace tantri::field;
+        juce::StringArray motions; for (auto* m : kMotionName) motions.add (m);
+        auto deg = [] (float v) { return juce::String (juce::roundToInt (v)) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0")); };
+        struct D { const char* id; const char* name; float az, el, d; int motion; };
+        const D src[4] = { { "sitar", "Sitar", 0, 0, 0.3f, motion::None }, { "tabla", "Tabla", -40, -5, 0.35f, motion::None },
+                           { "tanpura", "Tanpura", 40, 5, 0.4f, motion::Drift }, { "input", "Input", 0, 10, 0.3f, motion::None } };
+        for (int k = 0; k < kSources; ++k)
+        {
+            juce::String id (src[k].id), nm (src[k].name);
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_az", 1 }, nm + " direction", NR (-180, 180), src[k].az, fmt (deg)));
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_el", 1 }, nm + " height", NR (kElLow, kElHigh), src[k].el, fmt (deg)));
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_dist", 1 }, nm + " distance", unit, src[k].d, fmt (pct)));
+            p.push_back (std::make_unique<APC> (juce::ParameterID { id + "_motion", 1 }, nm + " motion", motions, src[k].motion));
+            NR r (0.25f, 4.0f); r.setSkewForCentre (1.0f);
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_rate", 1 }, nm + " motion rate", r, 1.0f,
+                                                fmt ([] (float v) { return juce::String (v, 2) + "x"; })));
+        }
+        p.push_back (std::make_unique<APC> (juce::ParameterID { "order", 1 }, "Ambisonic order",
+                                            juce::StringArray { "1st", "2nd", "3rd", "4th", "5th", "6th", "7th" }, 2));
+        F ("rolloff", "Distance rolloff", unit, 0.5f, pct);
+        F ("air", "Air", unit, 0.5f, pct);
+        F ("spread", "Near spread", unit, 0.5f, pct);
+        F ("blur", "Far blur", unit, 0.0f, pct);
+        { NR r (0.02f, 0.5f); F ("near", "Near radius", r, 0.12f, pct); }
+        { NR r (0.1f, 4.0f); r.setSkewForCentre (1.0f); F ("mspeed", "Motion speed", r, 1.0f, [] (float v) { return juce::String (v, 2) + "x"; }); }
+        F ("yaw", "Scene turn", NR (-180, 180), 0.0f, deg);
+        F ("pitch", "Scene tilt", NR (-90, 90), 0.0f, deg);
+       #if TANTRI_FX
+        F ("i_level", "Input level", lev, 0.8f, db);
+        F ("i_symp", "Input sympathy", unit, 0.35f, pct);
+       #endif
+    }
+   #endif
     return { p.begin(), p.end() };
 }
 
+// A VST2 host takes a plug-in's outputs as they are: where tracks are stereo (Ableton Live and most
+// others) the spatial build is stereo there, or W and Y would be played as left and right (as openfield)
+static bool stereoOnlyVst2Host()
+{
+    static const bool wide = [] {
+        const juce::PluginHostType h;
+        return h.isReaper() || h.isArdour() || h.isJUCEPluginHost() || h.isPluginval();
+    }();
+    return ! wide;
+}
+
+// Tantri: stereo out. Tantri Akasha: Ambisonics out - 3rd order (16 channels) as an Audio Unit, up
+// to 7th (64) elsewhere; the desktop app plays a stereo preview. The FX build takes stereo in.
+juce::AudioProcessor::BusesProperties TantriProcessor::buses()
+{
+    BusesProperties b;
+   #if TANTRI_FX
+    b = b.withInput ("Input", juce::AudioChannelSet::stereo(), true);
+   #endif
+   #if TANTRI_SPATIAL
+    const auto t = juce::PluginHostType::getPluginLoadedAs();
+    if (t == wrapperType_Standalone || t == wrapperType_Undefined || (t == wrapperType_VST && stereoOnlyVst2Host()))
+        return b.withOutput ("Output", juce::AudioChannelSet::stereo(), true);
+    return b.withOutput ("Output", juce::AudioChannelSet::ambisonic (t == wrapperType_AudioUnit ? 3 : 7), true);
+   #else
+    return b.withOutput ("Output", juce::AudioChannelSet::stereo(), true);
+   #endif
+}
+
 TantriProcessor::TantriProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor (buses()),
       apvts (*this, nullptr, "TANTRI", createLayout())
 {
     apvts.addParameterListener ("scale", this);
@@ -112,7 +187,28 @@ bool TantriProcessor::tuningIsCustom() const
 
 bool TantriProcessor::isBusesLayoutSupported (const BusesLayout& l) const
 {
-    return l.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    const auto out = l.getMainOutputChannelSet();
+   #if TANTRI_SPATIAL
+    // REAPER asks a VST3 for the track's width on both sides as plain channels and falls back to
+    // stereo if refused: take any width from 4 up and send the highest order that fits
+    const auto in0 = l.getMainInputChannelSet();
+    if (wrapperType == wrapperType_VST3 && out.size() >= 4 && out.size() <= ambi::kCh && (in0.isDisabled() || in0 == out)) return true;
+    bool ok = out == juce::AudioChannelSet::stereo();
+    if (! (wrapperType == wrapperType_VST && stereoOnlyVst2Host()))
+        for (int o = 1; o <= ambi::kMaxOrder; ++o)
+            ok = ok || out == juce::AudioChannelSet::ambisonic (o)
+                    || (out == juce::AudioChannelSet::discreteChannels (ambi::chFor (o)) && wrapperType != wrapperType_AudioUnit);
+    if (! ok) return false;
+   #else
+    if (out != juce::AudioChannelSet::stereo()) return false;
+   #endif
+   #if TANTRI_FX
+    const auto in = l.getMainInputChannelSet();
+    if (wrapperType != wrapperType_VST3 && in == juce::AudioChannelSet::mono()) return false;   // never a mono input outside VST3
+    return in.isDisabled() || in == juce::AudioChannelSet::mono() || in == juce::AudioChannelSet::stereo() || in == out;
+   #else
+    return true;
+   #endif
 }
 
 void TantriProcessor::prepareToPlay (double sampleRate, int)
@@ -122,6 +218,23 @@ void TantriProcessor::prepareToPlay (double sampleRate, int)
     master.reset (sr, 0.05);
     limiter.prepare (sr);
     setLatencySamples (limiter.latency());
+   #if TANTRI_SPATIAL
+    limitN.prepare (sr, ambi::kCh);
+    for (auto& e : enc) e.reset();
+    for (auto& e : encRev) e.reset();
+    srcBuf.setSize (10, kChunk);
+    inBuf.setSize (2, 4096);
+    fold.setSize (4, 4096);
+    scrL.assign (kChunk, 0.0f); scrR.assign (kChunk, 0.0f);
+    // a VST3 bus of plain speaker channels keeps only its first 19 in order: up to 3rd order
+    orderCap = ambi::kMaxOrder;
+    if (wrapperType == wrapperType_VST3)
+        if (auto* bus = getBus (false, 0))
+        {
+            const auto& set = bus->getCurrentLayout();
+            if (set.size() >= 4 && set.getAmbisonicOrder() < 0 && ! set.isDiscreteLayout()) orderCap = 3;
+        }
+   #endif
     readParams();
 }
 
@@ -159,6 +272,8 @@ void TantriProcessor::readParams()
     TanpuraParams np;
     np.on = v ("n_on") > 0.5f; np.cycleBpm = v ("n_cycle"); np.jawari = v ("n_jawari"); np.first = (int) v ("n_first");
     np.human = v ("n_human"); np.octave = (int) v ("n_octave") - 1; np.width = v ("n_width"); np.level = v ("n_level");
+    np.mode = (int) v ("n_mode"); np.voicing = (int) v ("n_voicing"); np.note = (int) v ("n_note");
+    np.chordMask = (v ("n_dr1") > 0.5f ? 1 : 0) | (v ("n_dr2") > 0.5f ? 2 : 0) | (v ("n_dr3") > 0.5f ? 4 : 0) | (v ("n_dr4") > 0.5f ? 8 : 0);
     tanpura.setParams (np, scale, scaleVersion, sa);
     tanpuraFirst.store (tanpura.firstStringChoice());
     reverb.setSize (v ("roomSize"));
@@ -229,6 +344,11 @@ void TantriProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         if (pos && pos->getIsPlaying() && pos->getPpqPosition()) beatPos.store (*pos->getPpqPosition());
         else beatPos.store (-1.0);
     }
+   #if TANTRI_SPATIAL
+    processSpatial (buffer, midi);
+    updateMeters();
+    return;
+   #endif
     const int n = buffer.getNumSamples();
     auto* L = buffer.getWritePointer (0);
     auto* R = buffer.getWritePointer (1);
@@ -256,19 +376,176 @@ void TantriProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
     while (it != midi.end()) { handleMidi ((*it).getMessage()); ++it; }
 
-    // meters
+    outPeak.store (std::max (blockPeak, outPeak.load() * 0.9f));
+    float gr = limiter.takeMinGain();
+    limitDb.store (std::min (limitDb.load() * 0.9f, juce::Decibels::gainToDecibels (gr)));
+    updateMeters();
+}
+
+#if TANTRI_SPATIAL
+// Tantri Akasha: every source rendered into its own stereo pair, then placed in the space (its home
+// plus its motion, or its bird of the flock), turned by the scene rotation and encoded; the room is
+// encoded wide and diffuse. One look-ahead ceiling over all channels.
+void TantriProcessor::processSpatial (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    using namespace tantri::field;
+    const int n = buffer.getNumSamples();
+    auto v = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+    auto vs = [this] (int k, const char* suffix) { return apvts.getRawParameterValue (juce::String (kSrcId[k]) + suffix)->load(); };
+
+    // the input (FX build) is read before the outputs are cleared: the buffer is shared
+    const int inCh = getTotalNumInputChannels();
+    if (inBuf.getNumSamples() < n) inBuf.setSize (2, n, false, false, true);
+    for (int c = 0; c < 2; ++c)
+    {
+        if (inCh > 0) inBuf.copyFrom (c, 0, buffer, std::min (c, inCh - 1), 0, n);
+        else inBuf.clear (c, 0, n);
+    }
+    const int numOut = getTotalNumOutputChannels();
+    buffer.clear();
+
+    SpaceParams sp;
+    sp.rolloff = v ("rolloff"); sp.air = v ("air"); sp.spread = v ("spread"); sp.blur = v ("blur"); sp.nearR = v ("near");
+    sp.yaw = v ("yaw") * tantri::field::kPi / 180.0f; sp.pitch = v ("pitch") * tantri::field::kPi / 180.0f; sp.mspeed = v ("mspeed");
+
+    // where the output goes: Ambisonics (as many orders as fit), or a 1st-order stereo preview (W +- Y)
+    const int wanted = 1 + (int) v ("order");
+    float* dst[ambi::kCh] {};
+    int nch, order;
+    const bool preview = numOut < 4;
+    if (! preview)
+    {
+        nch = std::min (numOut, ambi::kCh);
+        order = std::min ({ wanted, ambi::orderFor (nch), orderCap });
+        nch = ambi::chFor (order);
+        for (int c = 0; c < nch; ++c) dst[c] = buffer.getWritePointer (c);
+    }
+    else
+    {
+        if (fold.getNumSamples() < n) fold.setSize (4, n, false, false, true);
+        fold.clear();
+        nch = 4; order = 1;
+        for (int c = 0; c < 4; ++c) dst[c] = fold.getWritePointer (c);
+    }
+    orderNow.store (preview ? 0 : order);
+
+    const float sRoom = v ("s_room"), tRoom = v ("t_room"), nRoom = v ("n_room");
+   #if TANTRI_FX
+    const float inLevel = v ("i_level"), symp = v ("i_symp");
+   #else
+    const float inLevel = 0.0f, symp = 0.0f;
+   #endif
+    master.setTargetValue (v ("master"));
+
+    // the places (home + motion); motion clocks restart when a source's motion changes
+    Place pl[4];
+    static constexpr float seeds[4] = { 0.21f, 0.68f, 0.43f, 0.91f };
+    for (int k = 0; k < kSources; ++k)
+    {
+        pl[k].x = xForAzDeg (vs (k, "_az")); pl[k].y = yForElDeg (vs (k, "_el")); pl[k].d = vs (k, "_dist");
+        pl[k].motion = (int) vs (k, "_motion"); pl[k].mrate = vs (k, "_rate"); pl[k].mseed = seeds[k];
+        if (pl[k].motion != lastMotion[k]) { lastMotion[k] = pl[k].motion; tau[k] = 0.0; }
+    }
+
+    float blockPeak = 0;
+    float act[4] {};
+    auto it = midi.begin();
+    for (int pos = 0; pos < n; pos += kChunk)
+    {
+        const int m = std::min (kChunk, n - pos);
+        float* sL[5]; float* sR[5];
+        for (int k = 0; k < 5; ++k) { sL[k] = srcBuf.getWritePointer (2 * k); sR[k] = srcBuf.getWritePointer (2 * k + 1); }
+        const float* inL = inBuf.getReadPointer (0) + pos;
+        const float* inR = inBuf.getReadPointer (1) + pos;
+        float g = 1.0f;
+        for (int i = 0; i < m; ++i)
+        {
+            while (it != midi.end() && (*it).samplePosition <= pos + i) { handleMidi ((*it).getMessage()); ++it; }
+            sitar.extDrive = symp * 0.0008f * (inL[i] + inR[i]);
+            sitar.tick (sL[0][i], sR[0][i]);
+            tabla.tick (sL[1][i], sR[1][i]);
+            tanpura.tick (sL[2][i], sR[2][i]);
+            sL[3][i] = inL[i] * inLevel; sR[3][i] = inR[i] * inLevel;
+            reverb.process (sL[0][i] * sRoom + sL[1][i] * tRoom + sL[2][i] * nRoom + sL[3][i] * 0.2f,
+                            sR[0][i] * sRoom + sR[1][i] * tRoom + sR[2][i] * nRoom + sR[3][i] * 0.2f, sL[4][i], sR[4][i]);
+            g = master.getNextValue();
+        }
+        for (int k = 0; k < kSources; ++k)
+            for (int i = 0; i < m; ++i) act[k] = std::max (act[k], std::max (std::fabs (sL[k][i]), std::fabs (sR[k][i])));
+
+        // move: clocks, the flock, then encode each source
+        const float dt = (float) m / (float) sr;
+        flock.begin();
+        for (int k = 0; k < kSources; ++k)
+        {
+            tau[k] += dt * sp.mspeed;
+            if (pl[k].motion == motion::Boids) flock.add (k, pl[k].x, pl[k].y, pl[k].d, pl[k].mrate * sp.mspeed);
+        }
+        flock.step (dt);
+        float* out[ambi::kCh];
+        for (int c = 0; c < nch; ++c) out[c] = dst[c] + pos;
+        for (int k = 0; k < kSources; ++k)
+        {
+            float x, y, d;
+            if (pl[k].motion == motion::Boids)
+            {
+                if (auto* b = flock.find (k)) { x = b->x; y = b->y; d = b->d; }
+                else { x = pl[k].x; y = pl[k].y; d = pl[k].d; }
+            }
+            else moved (pl[k], tau[k], x, y, d);
+            srcX[k].store (x); srcY[k].store (y); srcD[k].store (d);
+            float az = azimuth (x), el = elevation (y);
+            rotate (az, el, sp);
+            enc[k].process (sL[k], sR[k], out, nch, order, m, az, el, d, distanceGain (d, sp) * g * 1.7f, sp, sr, 1.0f, scrL.data(), scrR.data());
+        }
+        // the room: wide, high, diffuse (its higher orders mostly gone)
+        for (int s = 0; s < 2; ++s)
+        {
+            float az = (s == 0 ? 70.0f : -70.0f) * tantri::field::kPi / 180.0f, el = 20.0f * tantri::field::kPi / 180.0f;
+            rotate (az, el, sp);
+            encRev[s].process (s == 0 ? sL[4] : sR[4], s == 0 ? sL[4] : sR[4], out, nch, order, m, az, el, 0.5f,
+                               0.7f * g * 1.2f, sp, sr, 0.35f, scrL.data(), scrR.data());
+        }
+    }
+    while (it != midi.end()) { handleMidi ((*it).getMessage()); ++it; }
+
+    // the stereo preview: fold the 1st order to left / right
+    if (preview)
+    {
+        const float* w = fold.getReadPointer (0);
+        const float* y = fold.getReadPointer (1);
+        for (int ch = 0; ch < std::min (numOut, 2); ++ch)
+        {
+            float* d = buffer.getWritePointer (ch);
+            const float sgn = ch == 0 ? 1.0f : -1.0f;
+            for (int i = 0; i < n; ++i) d[i] = (w[i] + sgn * y[i]) * 0.7071f;
+        }
+        nch = std::min (numOut, 2);
+        for (int c = 0; c < nch; ++c) dst[c] = buffer.getWritePointer (c);
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        for (int c = 0; c < nch; ++c) blockPeak = std::max (blockPeak, std::fabs (dst[c][i]));
+        limitN.process (dst, nch, i);   // look-ahead ceiling at -1 dBFS over every channel: never clips
+    }
+    outPeak.store (std::max (blockPeak, outPeak.load() * 0.9f));
+    float gr = limitN.takeMinGain();
+    limitDb.store (std::min (limitDb.load() * 0.9f, juce::Decibels::gainToDecibels (gr)));
+    for (int k = 0; k < kSources; ++k) srcAct[k].store (std::max (act[k], srcAct[k].load() * 0.8f));
+}
+#endif
+
+void TantriProcessor::updateMeters()
+{
     for (int w = 0; w < ActiveScale::kMax; ++w) { swaraAct[w].store (sitar.activity[w]); sitar.activity[w] *= 0.6f; }
     chikAct.store (std::max (chikAct.load() * 0.0f, sitar.chikFlash)); sitar.chikFlash *= 0.7f;
     dayanAct.store (tabla.dayanFlash); tabla.dayanFlash *= 0.75f;
     bayanAct.store (tabla.bayanFlash); tabla.bayanFlash *= 0.75f;
     lastBol.store (tabla.lastBol);
     strokeCount.store (tabla.strokeCount);
-    for (int s = 0; s < 4; ++s) tanpuraAct[s].store (std::max (tanpura.stringLevel (s), tanpura.pluckFlash[s]));
+    for (int s = 0; s < 4; ++s) { tanpuraAct[s].store (std::max (tanpura.stringLevel (s), tanpura.pluckFlash[s])); tanpuraDrone[s].store (tanpura.droning (s)); }
     tanpuraLast.store (tanpura.lastPlucked);
     voicesUsed.store (sitar.voiceCount);
-    outPeak.store (std::max (blockPeak, outPeak.load() * 0.9f));
-    float gr = limiter.takeMinGain();
-    limitDb.store (std::min (limitDb.load() * 0.9f, juce::Decibels::gainToDecibels (gr)));
 }
 
 void TantriProcessor::getStateInformation (juce::MemoryBlock& dest)

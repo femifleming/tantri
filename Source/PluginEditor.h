@@ -80,6 +80,36 @@ private:
     TantriProcessor& proc;
 };
 
+// Tantri Akasha: the space. The sphere unrolled (round you left to right, height bottom to top),
+// a plan seen from above, the field settings and each source's place and motion.
+class SpacePanel : public juce::Component
+{
+public:
+    SpacePanel (TantriProcessor&);
+    ~SpacePanel() override;
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void tick();
+    static constexpr int kMapW = 752, kMapH = 368;
+private:
+    juce::Point<float> mapPoint (float x, float y) const { return { x * kMapW, (1.0f - y) * kMapH }; }
+    int sourceAt (juce::Point<float>) const;
+    void motionMenu (int k, juce::Component* target);
+    float pv (int k, const char* suffix) const;
+    TantriProcessor& proc;
+    std::vector<std::unique_ptr<StarKnob>> knobs;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;
+    std::vector<std::unique_ptr<Pill>> motionPills;
+    struct Trail { std::array<juce::Point<float>, 48> p {}; int n = 0, w = 0; };
+    std::array<Trail, 4> trails;
+    int dragging = -1;
+    float act[4] {};
+};
+
 class RagaStrip : public juce::Component
 {
 public:
@@ -103,6 +133,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void tick();
+    void setSpaceView (bool);
 private:
     void editValue (Pill&, const char* paramId);
     void showMidiMenu();
@@ -114,6 +145,9 @@ private:
     TablaTile tablaTile;
     TanpuraTile tanpuraTile;
     RagaStrip strip;
+    std::unique_ptr<SpacePanel> space;
+    bool spaceView = false;
+    Pill viewPill { "VIEW" };
     Pill saPill { "SA" }, ragaPill { "SCALE" }, lockPill { "MAP" }, meendPill { "MEEND" }, roomPill { "ROOM" }, midiPill { "MIDI" }, voicesPill { "VOICES" }, outPill { "OUT" };
     std::vector<std::unique_ptr<StarKnob>> knobs;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;

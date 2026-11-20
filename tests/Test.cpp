@@ -15,17 +15,20 @@ static std::vector<Ev> yamanAlap (double t0);
 static std::vector<Ev> teentaal (double t0, double bpm, int cycles);
 static constexpr double kFs = 48000.0;
 
-static juce::AudioBuffer<float> render (TantriProcessor& p, std::vector<Ev> evs, double seconds, int block = 256)
+static juce::AudioBuffer<float> render (TantriProcessor& p, std::vector<Ev> evs, double seconds, int block = 256,
+                                        std::function<void (juce::AudioBuffer<float>&, int)> input = {})
 {
     std::sort (evs.begin(), evs.end(), [] (auto& a, auto& b) { return a.t < b.t; });
     const int total = int (seconds * kFs);
-    juce::AudioBuffer<float> out (2, total), buf (2, block);
+    const int nch = std::max (p.getTotalNumOutputChannels(), p.getTotalNumInputChannels());
+    juce::AudioBuffer<float> out (p.getTotalNumOutputChannels(), total), buf (nch, block);
     size_t e = 0;
     for (int pos = 0; pos < total; pos += block)
     {
         int n = std::min (block, total - pos);
-        buf.setSize (2, n, false, false, true);
+        buf.setSize (nch, n, false, false, true);
         buf.clear();
+        if (input) input (buf, pos);
         juce::MidiBuffer mb;
         while (e < evs.size() && int (evs[e].t * kFs) < pos + n)
         {
@@ -35,7 +38,7 @@ static juce::AudioBuffer<float> render (TantriProcessor& p, std::vector<Ev> evs,
         p.processBlock (buf, mb);
         gPrePeak = std::max (gPrePeak, p.outPeak.load());
         gMaxGR = std::min (gMaxGR, p.limitDb.load());
-        for (int c = 0; c < 2; ++c) out.copyFrom (c, pos, buf, c, 0, n);
+        for (int c = 0; c < out.getNumChannels(); ++c) out.copyFrom (c, pos, buf, c, 0, n);
     }
     return out;
 }
@@ -43,7 +46,7 @@ static juce::AudioBuffer<float> render (TantriProcessor& p, std::vector<Ev> evs,
 static std::unique_ptr<TantriProcessor> make()
 {
     auto p = std::make_unique<TantriProcessor>();
-    p->setPlayConfigDetails (0, 2, kFs, 256);
+    p->setPlayConfigDetails (TantriProcessor::kFx ? 2 : 0, 2, kFs, 256);
     p->prepareToPlay (kFs, 256);
     return p;
 }
@@ -192,6 +195,175 @@ static int testLevels()
     return 0;
 }
 
+// tanpura drone: the level must hold (no decay) and sit near the plucked cycle's level
+static int testDrone()
+{
+    auto windows = [] (const juce::AudioBuffer<float>& b, double from, std::vector<float>& w)
+    {
+        const int W = int (kFs);
+        for (int s = int (from * kFs); s + W <= b.getNumSamples(); s += W)
+        {
+            double e = 0;
+            for (int c = 0; c < 2; ++c) { auto* x = b.getReadPointer (c); for (int i = 0; i < W; ++i) e += x[s + i] * x[s + i]; }
+            w.push_back ((float) std::sqrt (e / (2.0 * W)));
+        }
+    };
+    auto stats = [] (const char* name, const std::vector<float>& w)
+    {
+        float lo = 1e9f, hi = 0, avg = 0;
+        for (float x : w) { lo = std::min (lo, x); hi = std::max (hi, x); avg += x; }
+        avg /= std::max<size_t> (1, w.size());
+        std::printf ("%-34s rms avg %6.1f dB  min %6.1f  max %6.1f  (first->last %6.1f -> %6.1f)\n", name,
+                     juce::Decibels::gainToDecibels (avg), juce::Decibels::gainToDecibels (lo), juce::Decibels::gainToDecibels (hi),
+                     juce::Decibels::gainToDecibels (w.front()), juce::Decibels::gainToDecibels (w.back()));
+        return avg;
+    };
+    int rc = 0;
+    std::vector<float> wc; { auto p = make(); set (*p, "n_room", 0); windows (render (*p, {}, 30), 4, wc); }
+    float cyc = stats ("cycle (plucked)", wc);
+    struct Case { const char* name; int voicing, note, mask; };
+    for (auto c : { Case { "drone chord (all four)", 1, 0, 15 }, Case { "drone chord Pa + kharaj", 1, 0, 9 },
+                    Case { "drone single Sa", 0, 1, 0 }, Case { "drone single kharaj sa", 0, 3, 0 }, Case { "drone single 1st string", 0, 0, 0 } })
+    {
+        auto p = make();
+        set (*p, "n_room", 0); set (*p, "n_mode", 1); set (*p, "n_voicing", (float) c.voicing); set (*p, "n_note", (float) c.note);
+        for (int i = 0; i < 4; ++i) set (*p, ("n_dr" + juce::String (i + 1)).toRawUTF8(), (c.mask >> i) & 1 ? 1.0f : 0.0f);
+        gPrePeak = 0;
+        auto b = render (*p, {}, 60);
+        std::vector<float> w; windows (b, 4, w);
+        float avg = stats (c.name, w);
+        // no decay: the last ten seconds within 3 dB of the average; no blow-up
+        float tail = 0; for (size_t i = w.size() - 10; i < w.size(); ++i) tail += w[i] / 10.0f;
+        bool ok = std::abs (juce::Decibels::gainToDecibels (tail / avg)) < 3.0f && gPrePeak < 2.0f && std::isfinite (avg);
+        std::printf ("   %s  (pre-limiter peak %.1f dB, vs cycle %+.1f dB)\n", ok ? "ok" : "FAIL", juce::Decibels::gainToDecibels (gPrePeak),
+                     juce::Decibels::gainToDecibels (avg / cyc));
+        if (! ok) rc = 1;
+        if (auto* d = std::getenv ("DRONE_WAV")) writeWav (b, juce::File (d).getChildFile (juce::String (c.name).replaceCharacters (" +()", "____") + ".wav"));
+    }
+    return rc;
+}
+
+
+#if TANTRI_SPATIAL
+// Tantri Akasha: Ambisonic encoding, motions, the flock and the ceiling
+static std::unique_ptr<TantriProcessor> makeAmbi (int order)
+{
+    auto p = std::make_unique<TantriProcessor>();
+    juce::AudioProcessor::BusesLayout l;
+    if (TantriProcessor::kFx) l.inputBuses.add (juce::AudioChannelSet::stereo());
+    l.outputBuses.add (juce::AudioChannelSet::ambisonic (order));
+    if (! p->setBusesLayout (l)) { std::printf ("layout refused\n"); return nullptr; }
+    p->setRateAndBufferSizeDetails (kFs, 256);
+    p->prepareToPlay (kFs, 256);
+    set (*p, "order", (float) (order - 1));
+    return p;
+}
+static double energy (const juce::AudioBuffer<float>& b, int ch, int from = 0)
+{
+    double e = 0; auto* x = b.getReadPointer (ch);
+    for (int i = from; i < b.getNumSamples(); ++i) e += x[i] * x[i];
+    return e;
+}
+static double corr (const juce::AudioBuffer<float>& b, int c1, int c2, int from, int to)
+{
+    double s = 0; auto* x = b.getReadPointer (c1); auto* y = b.getReadPointer (c2);
+    for (int i = from; i < to; ++i) s += x[i] * y[i];
+    return s;
+}
+static int testSpace()
+{
+    int rc = 0;
+    auto check = [&] (bool ok, const char* what) { std::printf ("  %s  %s\n", ok ? "ok  " : "FAIL", what); if (! ok) rc = 1; };
+    std::printf ("Tantri Akasha (%s):\n", TantriProcessor::kFx ? "FX" : "instrument");
+    // 1. the tanpura alone at 90 degrees left, level: Y follows W, X (front) silent
+    {
+        auto p = makeAmbi (3);
+        for (const char* id : { "tanpura_az" }) set (*p, id, 90);
+        set (*p, "tanpura_motion", 0); set (*p, "tanpura_el", 0); set (*p, "n_room", 0); set (*p, "spread", 0); set (*p, "tanpura_dist", 0.6f);
+        auto b = render (*p, {}, 6);
+        const double w = energy (b, 0, int (kFs)), y = energy (b, 1, int (kFs)), x = energy (b, 3, int (kFs)), z = energy (b, 2, int (kFs));
+        std::printf ("    W %.3g  Y %.3g  Z %.3g  X %.3g\n", w, y, z, x);
+        check (b.getNumChannels() == 16, "3rd order = 16 channels");
+        check (y > 0.7 * w && x < 0.05 * w && z < 0.05 * w, "source at 90 degrees left: Y ~ W, X and Z ~ 0");
+    }
+    // 2. orbit: the tanpura goes round you - Y changes sign over the circle
+    {
+        auto p = makeAmbi (1);
+        set (*p, "tanpura_motion", (float) tantri::field::motion::Orbit); set (*p, "tanpura_rate", 4.0f); set (*p, "n_room", 0);
+        set (*p, "n_mode", 1);   // drone: steady sound to follow
+        auto b = render (*p, {}, 9);
+        int pos = 0, neg = 0;
+        for (int s = int (kFs); s + 4800 < b.getNumSamples(); s += 4800)
+        {
+            double c = corr (b, 0, 1, s, s + 4800);
+            if (c > 0) ++pos; else ++neg;
+        }
+        std::printf ("    windows with the source left %d, right %d\n", pos, neg);
+        check (pos > 5 && neg > 5, "orbit: the tanpura passes both sides");
+    }
+    // 3. every source on boids / lorenz with the drone + sitar + tabla: 30 s, finite, under the ceiling at 7th order
+    for (int mo : { (int) tantri::field::motion::Boids, (int) tantri::field::motion::Lorenz })
+    {
+        auto p = makeAmbi (7);
+        for (int k = 0; k < TantriProcessor::kSources; ++k) set (*p, (juce::String (TantriProcessor::kSrcId[k]) + "_motion").toRawUTF8(), (float) mo);
+        for (auto id : { "s_level", "t_level", "n_level", "master" }) set (*p, id, 1.5f);
+        set (*p, "n_mode", 1); set (*p, "mspeed", 4.0f);
+        auto ev = yamanAlap (0.1); auto tb = teentaal (0.1, 96, 3); ev.insert (ev.end(), tb.begin(), tb.end());
+        float x0[4], y0[4];
+        render (*p, {}, 0.1);
+        for (int k = 0; k < TantriProcessor::kSources; ++k) { x0[k] = p->srcX[k].load(); y0[k] = p->srcY[k].load(); }
+        auto b = render (*p, ev, 30, 256, [] (juce::AudioBuffer<float>& io, int pos)
+        {
+            for (int i = 0; i < io.getNumSamples(); ++i)
+                for (int c = 0; c < std::min (2, io.getNumChannels()); ++c)
+                    io.setSample (c, i, 0.5f * std::sin (2.0f * juce::MathConstants<float>::pi * 220.0f * float (pos + i) / float (kFs)));
+        });
+        float pk = 0; bool finite = true;
+        for (int c = 0; c < b.getNumChannels(); ++c) { pk = std::max (pk, b.getMagnitude (c, 0, b.getNumSamples())); auto* x = b.getReadPointer (c); for (int i = 0; i < b.getNumSamples(); ++i) finite &= std::isfinite (x[i]); }
+        float moved = 0;
+        for (int k = 0; k < TantriProcessor::kSources; ++k) moved = std::max (moved, std::abs (p->srcX[k].load() - x0[k]) + std::abs (p->srcY[k].load() - y0[k]));
+        std::printf ("    %s: 64 ch, peak %.2f dBFS, moved %.3f\n", mo == tantri::field::motion::Boids ? "boids" : "lorenz", juce::Decibels::gainToDecibels (pk), moved);
+        check (finite && pk <= 0.8913f + 1e-4f, "finite and never above -1 dBFS");
+        check (moved > 0.01f, "the sources move");
+    }
+    // 4. the FX: its input is heard (W carries the 220 Hz tone with every instrument silent)
+    if (TantriProcessor::kFx)
+    {
+        auto p = makeAmbi (3);
+        set (*p, "n_on", 0); set (*p, "i_symp", 0);
+        auto b = render (*p, {}, 2, 256, [] (juce::AudioBuffer<float>& io, int pos)
+        {
+            for (int i = 0; i < io.getNumSamples(); ++i)
+                for (int c = 0; c < 2; ++c) io.setSample (c, i, 0.3f * std::sin (2.0f * juce::MathConstants<float>::pi * 220.0f * float (pos + i) / float (kFs)));
+        });
+        const double w = energy (b, 0, int (kFs)) / kFs;
+        std::printf ("    input in W: rms %.3f\n", std::sqrt (w));
+        check (w > 1e-3, "the input is placed in the space");
+        // and the input sounds the taraf
+        auto p2 = makeAmbi (3);
+        set (*p2, "n_on", 0); set (*p2, "i_level", 0); set (*p2, "i_symp", 1.0f);
+        auto b2 = render (*p2, {}, 2, 256, [] (juce::AudioBuffer<float>& io, int pos)
+        {
+            for (int i = 0; i < io.getNumSamples(); ++i)
+                for (int c = 0; c < 2; ++c) io.setSample (c, i, 0.3f * std::sin (2.0f * juce::MathConstants<float>::pi * 277.18f * float (pos + i) / float (kFs)));
+        });
+        const double w2 = energy (b2, 0, int (kFs)) / kFs;
+        std::printf ("    taraf sounded by the input: rms %.4f\n", std::sqrt (w2));
+        check (w2 > 1e-7, "the input sets the sympathetic strings ringing");
+    }
+    // 5. stereo preview (the app): something left/right, not silent
+    {
+        auto p = make();
+        set (*p, "n_mode", 1); set (*p, "tanpura_az", 90); set (*p, "tanpura_motion", 0);
+        auto b = render (*p, {}, 4);
+        const double l = energy (b, 0, int (kFs)), r = energy (b, 1, int (kFs));
+        std::printf ("    stereo preview L %.3g  R %.3g\n", l, r);
+        check (l > 2 * r && r > 0, "stereo preview: a source on the left is louder left");
+    }
+    return rc;
+}
+#endif
+
 static int testBols()
 {
     for (float snap : { 0.0f, 0.35f })
@@ -263,7 +435,12 @@ static int testStress()
 
 static int testCpu()
 {
+   #if TANTRI_SPATIAL
+    auto p = std::getenv ("CPU_ORDER") ? makeAmbi (std::atoi (std::getenv ("CPU_ORDER"))) : make();
+    for (int k = 0; k < TantriProcessor::kSources; ++k) set (*p, (juce::String (TantriProcessor::kSrcId[k]) + "_motion").toRawUTF8(), (float) (k == 1 ? 11 : 12));
+   #else
     auto p = make();
+   #endif
     std::vector<Ev> ev;
     for (int i = 0; i < 12; ++i) ev.push_back ({ 0.01 + i * 0.05, juce::MidiMessage::noteOn (1, 48 + i * 3, 0.9f) });
     for (double t = 0; t < 10; t += 0.25) ev.push_back ({ t, juce::MidiMessage::noteOn (10, 36 + int (t * 4) % 12, 0.8f) });
@@ -392,6 +569,8 @@ static void shot (const juce::File& out)
     render (*p, ev, 4.4);
     std::unique_ptr<juce::AudioProcessorEditor> ed (p->createEditor());
     auto& canvas = dynamic_cast<TantriEditor*> (ed.get())->getCanvas();
+    if (std::getenv ("SHOT_SPACE")) canvas.setSpaceView (true);
+    if (std::getenv ("SHOT_DRONE")) { set (*p, "n_mode", 1); set (*p, "n_dr3", 0); render (*p, {}, 2.0); }
     for (int i = 0; i < 3; ++i) canvas.tick();
     auto img = canvas.createComponentSnapshot (canvas.getLocalBounds(), true, 2.0f);
     out.deleteFile();
@@ -407,6 +586,15 @@ int main (int argc, char** argv)
     int rc = 0;
     if (a.contains ("--pitch")) rc |= testPitch();
     if (a.contains ("--bols")) rc |= testBols();
+    if (a.contains ("--drone")) rc |= testDrone();
+   #if TANTRI_SPATIAL
+    if (a.contains ("--space")) rc |= testSpace();
+   #endif
+    if (a.isEmpty()) { rc |= testPitch(); rc |= testDrone(); rc |= testStress();
+                      #if TANTRI_SPATIAL
+                       rc |= testSpace();
+                      #endif
+                     }
     if (int i = a.indexOf ("--jaw"); i >= 0) jawTest (juce::File (a[i + 1]));
     if (a.contains ("--levels")) rc |= testLevels();
     if (a.contains ("--debug")) rc |= testDebug();

@@ -5,3 +5,4 @@ build-release/
 demos/*.wav
 tests/lab/lab
 tests/lab/pitch
+dist/
