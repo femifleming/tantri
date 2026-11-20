@@ -24,8 +24,6 @@ The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.
 
 **Output.** The instruments are balanced so default playing peaks at about −3 dBFS. A stereo-linked look-ahead limiter (−1 dBFS ceiling, 1.5 ms latency reported to the host) means the output never clips. The **OUT** meter shows the pre-limiter peak and any gain reduction.
 
-**Vortex.** A spinning, tilted spectrogram disc. Rings are partials (log frequency from the eye outward), and spiral arms are time.
-
 ## Build
 
 ```sh
@@ -58,7 +56,6 @@ Source/Dsp.h         ContactString (waveguide + jawari), SympString, ModalBody, 
 Source/Sitar.h       voices, meend/gamak/andolan, taraf, chikari, gourd
 Source/Tabla.h       modal drums, strokes (bols), bayan pressure
 Source/Tanpura.h     four-string drone and pluck cycle
-Source/Vortex.h      vortex spectrogram
 Source/PluginEditor  the E "Grace" look: shruti star, teentaal ring, tanpura flower, star knobs
 docs/manual          manual.html → Tantri Manual.pdf (headless Chrome)
 mockups              the six look options shown before the UI was designed

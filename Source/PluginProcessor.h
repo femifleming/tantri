@@ -51,19 +51,7 @@ public:
     std::atomic<int> tanpuraLast { -1 }, tanpuraFirst { 1 };
     std::atomic<double> beatPos { -1.0 };     // host beat position, -1 if not playing
     std::atomic<int> voicesUsed { 0 };
-    std::atomic<float> outPeak { 0 }, limitDb { 0 };
-    // mono output for the vortex spectrogram (lock-free single producer / single consumer)
-    juce::AbstractFifo scopeFifo { 32768 };
-    std::vector<float> scopeBuf = std::vector<float> (32768, 0.0f);
-    int readScope (float* dest, int maxN)
-    {
-        int n = std::min (maxN, scopeFifo.getNumReady());
-        auto r = scopeFifo.read (n);
-        if (r.blockSize1 > 0) std::copy_n (scopeBuf.data() + r.startIndex1, r.blockSize1, dest);
-        if (r.blockSize2 > 0) std::copy_n (scopeBuf.data() + r.startIndex2, r.blockSize2, dest + r.blockSize1);
-        return n;
-    }
-    double getSr() const { return sr; }   // pre-limiter peak, limiter gain reduction (dB, <= 0)
+    std::atomic<float> outPeak { 0 }, limitDb { 0 };   // pre-limiter peak, limiter gain reduction (dB, <= 0)
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     static juce::StringArray ragaNames();

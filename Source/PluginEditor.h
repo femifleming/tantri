@@ -1,7 +1,6 @@
 #pragma once
 #include "PluginProcessor.h"
 #include "Art.h"
-#include "Vortex.h"
 
 // Star knob: gold spikes light up to the value; label and value text underneath
 class StarKnob : public juce::Slider
@@ -102,7 +101,6 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void tick();
-    void feedForTest (const float* x, int n) { vortex.push (x, n); vortex.analyse(); }
 private:
     void editValue (Pill&, const char* paramId);
     void showMidiMenu();
@@ -114,8 +112,6 @@ private:
     TablaTile tablaTile;
     TanpuraTile tanpuraTile;
     RagaStrip strip;
-    Vortex vortex;
-    std::vector<float> scopeTmp = std::vector<float> (32768);
     Pill saPill { "SA" }, ragaPill { "RAGA" }, lockPill { "LOCK" }, meendPill { "MEEND" }, roomPill { "ROOM" }, midiPill { "MIDI" }, voicesPill { "VOICES" }, outPill { "OUT" };
     std::vector<std::unique_ptr<StarKnob>> knobs;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;

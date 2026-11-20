@@ -243,13 +243,6 @@ void TantriProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
     while (it != midi.end()) { handleMidi ((*it).getMessage()); ++it; }
 
-    // vortex feed (drop samples if the UI is not reading)
-    {
-        auto w = scopeFifo.write (std::min (n, scopeFifo.getFreeSpace()));
-        auto put = [&] (int start, int len, int off) { for (int i = 0; i < len; ++i) scopeBuf[(size_t) (start + i)] = 0.5f * (L[off + i] + R[off + i]); };
-        if (w.blockSize1 > 0) put (w.startIndex1, w.blockSize1, 0);
-        if (w.blockSize2 > 0) put (w.startIndex2, w.blockSize2, w.blockSize1);
-    }
     // meters
     for (int w = 0; w < 12; ++w) { swaraAct[w].store (sitar.activity[w]); sitar.activity[w] *= 0.6f; }
     chikAct.store (std::max (chikAct.load() * 0.0f, sitar.chikFlash)); sitar.chikFlash *= 0.7f;

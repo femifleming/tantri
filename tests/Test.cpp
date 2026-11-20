@@ -365,13 +365,6 @@ static void shot (const juce::File& out)
     render (*p, ev, 4.4);
     std::unique_ptr<juce::AudioProcessorEditor> ed (p->createEditor());
     auto& canvas = dynamic_cast<TantriEditor*> (ed.get())->getCanvas();
-    // feed the vortex ~4 s of a live performance so the shot shows the spiral
-    {
-        auto p2 = make();
-        auto ev = yamanAlap (0.0); auto tb = teentaal (0.5, 96, 2); ev.insert (ev.end(), tb.begin(), tb.end());
-        auto b = render (*p2, ev, 9.0);
-                for (int f = 0; f < 260; ++f) { canvas.feedForTest (b.getReadPointer (0) + f * 1600, 1600); }
-    }
     for (int i = 0; i < 3; ++i) canvas.tick();
     auto img = canvas.createComponentSnapshot (canvas.getLocalBounds(), true, 2.0f);
     out.deleteFile();

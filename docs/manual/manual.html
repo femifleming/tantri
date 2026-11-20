@@ -48,7 +48,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   </div>
   <div class="rule" style="margin-top:8mm"></div>
   <div class="fig" style="margin-top:4mm"><img src="img/ui.png"></div>
-  <p class="cap">THE TANTRI WINDOW: THE 22-SHRUTI STAR, THE TEENTAAL CYCLE AND THE TANPURA FLOWER ON TOP, THE VORTEX SPECTROGRAM BELOW, CONTROLS AND THE RAGA STRIP AT THE BOTTOM.</p>
+  <p class="cap">THE TANTRI WINDOW: THE 22-SHRUTI STAR, THE TEENTAAL CYCLE AND THE TANPURA FLOWER ON TOP, THE CONTROLS BELOW, THE RAGA STRIP AT THE BOTTOM.</p>
   <p style="margin-top:3mm">Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a just ratio taken from the 22 shrutis and shaped by the raga.</p>
   <div class="foot"><span>TANTRI 1.0 · MANUAL</span><span>VST3 · AU · VST2 · STANDALONE · MACOS</span></div>
 </div>
@@ -64,7 +64,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
     <tr><td class="k">5</td><td>Tanpura: the drone</td><td style="text-align:right">6</td></tr>
     <tr><td class="k">6</td><td>How the strings work: waveguides and the jawari bridge</td><td style="text-align:right">7</td></tr>
     <tr><td class="k">7</td><td>How the tabla works: modal synthesis</td><td style="text-align:right">8–9</td></tr>
-    <tr><td class="k">8</td><td>The vortex spectrogram and the output stage</td><td style="text-align:right">10</td></tr>
+    <tr><td class="k">8</td><td>The output stage</td><td style="text-align:right">10</td></tr>
     <tr><td class="k">9</td><td>Parameter reference</td><td style="text-align:right">11</td></tr>
   </table>
 
@@ -328,24 +328,10 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   <div class="foot"><span>TANTRI MANUAL</span><span>9</span></div>
 </div>
 
-<!-- 10 vortex + output -->
+<!-- 10 output -->
 <div class="page">
-  <h2>8 · THE VORTEX <span>A SPECTROGRAM YOU CAN READ AS PARTIALS</span></h2><div class="rule"></div>
-  <div class="fig"><img src="img/vortex.png"></div>
-  <p class="cap">THE VORTEX DURING A YAMAN ALAP WITH TABLA.</p>
-  <div class="cols">
-    <div>
-      <ul>
-        <li><b>Rings are partials.</b> Distance from the eye is log frequency, from 45 Hz at the centre to 12 kHz at the rim. Every harmonic of every sounding string draws its own ring, so a sitar note is a set of concentric gold rings, and a meend bends them in or out.</li>
-        <li><b>Arms are time.</b> Each new spectrum (30 per second) is laid down at a write-head that turns around the disc. A radial twist curls the history into three spiral arms, each holding the last few seconds. Older spectra darken, which carves the black gaps between the arms.</li>
-        <li><b>Brightness is level.</b> Violet is quiet, copper and gold are strong, cream is the loudest. The range follows the loudest recent partial, so soft playing still shows its structure.</li>
-      </ul>
-    </div>
-    <div>
-      <p>The jawari is easy to see here. A buzzing note keeps its outer rings lit long after a plain string would have gone dark. The tanpura's swirl shows up as rings glowing and fading in waves, and a damped tabla stroke is a short bright flash that the next arm swallows.</p>
-    </div>
-  </div>
-  <h2 style="margin-top:6mm">OUTPUT STAGE <span>NO CLIPPING</span></h2><div class="rule"></div>
+  <h2>8 · OUTPUT STAGE <span>NO CLIPPING</span></h2><div class="rule"></div>
+
   <div class="cols">
     <div>
       <p>The instruments are balanced so that normal playing never reaches the limit. These are measured peaks at the default settings:</p>

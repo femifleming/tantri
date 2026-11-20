@@ -319,8 +319,7 @@ void RagaStrip::mouseUp (const juce::MouseEvent&)
 // ---------------------------------------------------------------- Canvas (1200 x 780)
 Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), tanpuraTile (p), strip (p)
 {
-    addAndMakeVisible (sitarTile); addAndMakeVisible (tablaTile); addAndMakeVisible (tanpuraTile); addAndMakeVisible (strip); addAndMakeVisible (vortex);
-    vortex.setSampleRate (proc.getSr() > 0 ? proc.getSr() : 48000.0);
+    addAndMakeVisible (sitarTile); addAndMakeVisible (tablaTile); addAndMakeVisible (tanpuraTile); addAndMakeVisible (strip);
 
     struct K { const char* id; const char* label; int group; };
     static const K ks[] = {
@@ -337,7 +336,7 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
         auto* prm = proc.apvts.getParameter (k.id);
         auto knob = std::make_unique<StarKnob> (prm, k.label);
         int i = idx[k.group]++;
-        knob->setBounds (28 + k.group * 388 + (i % 6) * 61, 836 + (i / 6) * 84, 61, 82);
+        knob->setBounds (28 + k.group * 388 + (i % 6) * 61, 494 + (i / 6) * 84, 61, 82);
         addAndMakeVisible (*knob);
         attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, k.id, *knob));
         knob->onValueChange = [this] { sitarTile.repaint(); tanpuraTile.repaint(); };
@@ -404,15 +403,14 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
     outPill.valueColour = [this] { return proc.limitDb.load() < -0.1f ? col::coral : col::white; };
 
     for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill, &midiPill, &voicesPill, &outPill }) addAndMakeVisible (*pl);
-    setSize (1200, 1122);
+    setSize (1200, 780);
 }
 Canvas::~Canvas() = default;
 
 void Canvas::resized()
 {
     sitarTile.setBounds (tileBounds (0)); tablaTile.setBounds (tileBounds (1)); tanpuraTile.setBounds (tileBounds (2));
-    strip.setBounds (28, 1038, 1144, 62);
-    vortex.setBounds (28, 452, 1144, 330);
+    strip.setBounds (28, 696, 1144, 62);
     int x = 150;
     for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill })
     {
@@ -423,7 +421,7 @@ void Canvas::resized()
     voicesPill.setBounds (1172 - vw, 26, vw, 28);
     int mw = midiPill.preferredWidth() + 8;
     midiPill.setBounds (voicesPill.getX() - 24 - mw, 26, mw, 28);
-    outPill.setBounds (1172 - 176, 794, 176, 28);
+    outPill.setBounds (1172 - 176, 452, 176, 28);
 }
 
 void Canvas::paint (juce::Graphics& g)
@@ -437,7 +435,7 @@ void Canvas::paint (juce::Graphics& g)
     {
         float x = 28.0f + i * 388;
         g.setColour (col::white); g.setFont (font (21));
-        g.drawText (juce::CharPointer_UTF8 (names[i].a), juce::Rectangle<float> (x, 794, 200, 28), juce::Justification::centredLeft);
+        g.drawText (juce::CharPointer_UTF8 (names[i].a), juce::Rectangle<float> (x, 452, 200, 28), juce::Justification::centredLeft);
         float w = juce::GlyphArrangement::getStringWidth (font (21), juce::CharPointer_UTF8 (names[i].a));
         juce::String sub = juce::CharPointer_UTF8 (names[i].b);
         if (i == 2)
@@ -446,7 +444,7 @@ void Canvas::paint (juce::Graphics& g)
             sub = juce::String (fn[juce::jlimit (0, 4, proc.tanpuraFirst.load())]) + " SA SA sa";
         }
         g.setColour (col::grey); g.setFont (font (13));
-        g.drawText (sub, juce::Rectangle<float> (x + w + 8, 799, 300, 22), juce::Justification::centredLeft);
+        g.drawText (sub, juce::Rectangle<float> (x + w + 8, 457, 300, 22), juce::Justification::centredLeft);
     }
 }
 
@@ -467,15 +465,10 @@ void Canvas::tick()
     double beat = proc.beatPos.load();
     tablaTile.matra = beat >= 0 ? int (std::floor (beat)) % 16 : int ((sc + 15) % 16);
     for (int i = 0; i < 4; ++i) tanpuraTile.act[i] = std::max (proc.tanpuraAct[i].load(), tanpuraTile.act[i] * 0.9f);
-    vortex.setSampleRate (proc.getSr());
-    int got = proc.readScope (scopeTmp.data(), (int) scopeTmp.size());
-    vortex.push (scopeTmp.data(), got);
-    vortex.analyse();
-    vortex.repaint();
     sitarTile.repaint(); tablaTile.repaint(); tanpuraTile.repaint(); strip.repaint();
     voicesPill.repaint(); ragaPill.repaint(); saPill.repaint(); outPill.repaint();
     static int lastFirst = -1;
-    if (proc.tanpuraFirst.load() != lastFirst) { lastFirst = proc.tanpuraFirst.load(); repaint (800, 792, 400, 34); }
+    if (proc.tanpuraFirst.load() != lastFirst) { lastFirst = proc.tanpuraFirst.load(); repaint (800, 450, 400, 34); }
 }
 
 void Canvas::editValue (Pill& pill, const char* paramId)
@@ -560,16 +553,13 @@ TantriEditor::TantriEditor (TantriProcessor& p) : AudioProcessorEditor (p), proc
 {
     addAndMakeVisible (canvas);
     setResizable (true, true);
-    if (auto* c = getConstrainer()) { c->setFixedAspectRatio (1200.0 / 1122.0); c->setSizeLimits (720, 673, 2400, 2244); }
-    int w = 1200;   // start at full size, or as large as fits the screen
-    if (auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
-        w = std::min (1200, int ((d->userArea.getHeight() - 80) * 1200.0 / 1122.0));
-    setSize (std::max (720, w), int (std::max (720, w) * 1122.0 / 1200.0));
+    if (auto* c = getConstrainer()) { c->setFixedAspectRatio (1200.0 / 780.0); c->setSizeLimits (840, 546, 2400, 1560); }
+    setSize (1200, 780);
     startTimerHz (30);
 }
 void TantriEditor::resized()
 {
     float s = getWidth() / 1200.0f;
     canvas.setTransform (juce::AffineTransform::scale (s));
-    canvas.setBounds (0, 0, 1200, 1122);
+    canvas.setBounds (0, 0, 1200, 780);
 }
