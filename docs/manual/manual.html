@@ -49,7 +49,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   <div class="rule" style="margin-top:8mm"></div>
   <div class="fig" style="margin-top:4mm"><img src="img/ui.png"></div>
   <p class="cap">THE TANTRI WINDOW: THE 22-SHRUTI STAR, THE TEENTAAL CYCLE AND THE TANPURA FLOWER ON TOP, THE CONTROLS BELOW, THE RAGA STRIP AT THE BOTTOM.</p>
-  <p style="margin-top:3mm">Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a just ratio taken from the 22 shrutis and shaped by the raga.</p>
+  <p style="margin-top:3mm">Tantri (तन्त्री, "the stringed one") is a polyphonic MIDI instrument containing three classical Hindustani instruments. None of them uses samples, and none of them is tuned to twelve-tone equal temperament. Every pitch is a frequency for <b>Sa</b> that you choose in hertz, multiplied by a ratio from the chosen scale: a raga's shrutis, a Carnatic melakarta, or a microtonal system. Incoming MIDI is quantised to that scale.</p>
   <div class="foot"><span>TANTRI 1.0 · MANUAL</span><span>VST3 · AU · VST2 · STANDALONE · MACOS</span></div>
 </div>
 
@@ -73,14 +73,14 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
     <li>Load <b>Tantri</b> as an instrument (AU, VST3 or VST2), or open <b>Tantri.app</b>. The tanpura starts droning straight away. Click the centre of the tanpura flower to stop or start it.</li>
     <li>Play from <b>middle C (MIDI 60)</b> upwards. That key is <em>madhya Sa</em>, and every key after it is the next of the twelve swaras, tuned to the raga's shruti.</li>
     <li>The octave <b>36–47</b> plays tabla bols, and the keys <b>below 36</b> strike the sitar's chikari strings. Tabla also answers on <b>MIDI channel 10</b> across its whole range.</li>
-    <li>Choose a raga from <b>RAGA</b> in the header. The shruti star, the taraf strings, the tanpura's first string and the raga strip all follow it.</li>
+    <li>Choose a scale from <b>SCALE</b> in the header: Hindustani ragas and thaats, all 72 Carnatic melakartas, or a microtonal system. Incoming MIDI is quantised to it (<b>MAP</b>: quantize or steps). The shruti star, the taraf strings, the tanpura's first string and the strip all follow it.</li>
     <li>Pitch-bend is <em>meend</em>. Aftertouch pulls a note toward the next swara of the raga, and the mod wheel adds <em>gamak</em>.</li>
   </ul>
 
   <h3>MIDI map</h3>
   <table>
     <tr><th>INPUT</th><th>SITAR CHANNEL (DEFAULT: ANY)</th><th>TABLA CHANNEL (DEFAULT 10)</th></tr>
-    <tr><td class="k">Note ≥ Sa key − 12</td><td>sitar note: swara = (note − Sa key) mod 12, octave from the distance</td><td rowspan="2">every note plays a bol: note mod 12 → Ge Ke Ghe Na Tin Tun Te Re Dha Dhin Tit Kat</td></tr>
+    <tr><td class="k">Note ≥ Sa key − 12</td><td>sitar note, quantised to the nearest scale pitch (or the next degree per key in STEPS)</td><td rowspan="2">every note plays a bol: note mod 12 → Ge Ke Ghe Na Tin Tun Te Re Dha Dhin Tit Kat</td></tr>
     <tr><td class="k">Note in [Sa−24, Sa−13]</td><td>tabla bol (split on), same order as channel 10</td></tr>
     <tr><td class="k">Note &lt; Sa − 24</td><td>chikari strike</td><td></td></tr>
     <tr><td class="k">Velocity</td><td>mizrab force: louder, brighter, more jawari</td><td>stroke force: shorter contact, brighter</td></tr>
@@ -106,10 +106,10 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <ul>
         <li><b>Click a short blade</b> to use that shruti for its swara and add the swara to the raga.</li>
         <li><b>Click a long blade</b> to remove that swara from the raga.</li>
-        <li>Hover over a blade to read its swara, ratio and cents. The raga name gains a <b>*</b> once edited; <i>Reload raga</i> in the raga menu undoes the edits.</li>
+        <li>Hover over a blade to read its swara, ratio and cents. The scale name gains a <b>*</b> once edited; <i>Reload scale</i> in the scale menu undoes the edits.</li>
       </ul>
-      <h3>Raga lock</h3>
-      <p><b>OFF</b> lets all twelve keys sound their swara. <b>SNAP</b> moves keys outside the raga to the nearest raga swara, preferring the one below. <b>MUTE</b> silences them.</p>
+      <h3>Map: how keys reach the scale</h3>
+      <p><b>QUANTIZE</b> (default): each incoming MIDI note is read as its nominal pitch (100 cents per key from the Sa key) and snapped to the <i>nearest</i> pitch of the active scale (ties go down). Any keyboard, any MIDI file, always lands in the scale. <b>STEPS</b>: consecutive keys walk the scale one degree at a time, Sa on the Sa key. Use it to reach every pitch of a scale with more than twelve notes, such as all 22 shrutis, Partch 43 or 53-EDO.</p>
     </div>
     <div>
       <div class="fig" style="padding:2mm"><svg id="shrutiFig" viewBox="0 0 400 400" width="100%"></svg></div>
@@ -117,8 +117,8 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <table id="shrutiTable"><tr><th>SWARA</th><th>CANDIDATES (RATIO · CENTS)</th></tr></table>
     </div>
   </div>
-  <h3>Ragas included</h3>
-  <p style="font-size:8.8pt">Yaman · Bhairav · Bhairavi · Todi · Kafi · Khamaj · Bilawal · Asavari · Marwa · Purvi · Darbari Kanada · Malkauns · Bhupali · Durga · Desh · Bageshri · Puriya Dhanashri · Shree · Bihag · Jog · Kirwani · Chandrakauns · Hamsadhwani · Megh · Sarva (all twelve). Each one sets the shruti of every swara (for example the <em>ati-komal</em> 256/243 re and 128/81 dha of Bhairav and Todi) and marks its andolan swaras (re and dha in Bhairav, ga and dha in Darbari).</p>
+  <h3>The scale library (SCALE in the header, 145 scales)</h3>
+  <p style="font-size:8.6pt"><b>Hindustani ragas (42):</b> Yaman, Bhairav, Bhairavi, Todi, Kafi, Khamaj, Bilawal, Asavari, Marwa, Purvi, Darbari Kanada, Malkauns, Bhupali, Durga, Desh, Bageshri, Puriya Dhanashri, Shree, Bihag, Jog, Kirwani, Chandrakauns, Hamsadhwani, Megh, Sarva (all twelve), Lalit, Sohini, Ahir Bhairav, Shivranjani, Dhani, Madhuvanti, Kalavati, Patdeep, Gujari Todi, Multani, Hindol, Brindavani Sarang, Kedar, Charukeshi, Gorakh Kalyan, Jogiya, Basant. Each sets the shruti of every swara (for example the <em>ati-komal</em> 256/243 re and 128/81 dha of Bhairav and Todi) and marks its andolan swaras. <b>Thaats (10).</b> <b>Carnatic melakartas (all 72)</b>, grouped by chakra and labelled with Carnatic swaras (R1 R2 R3, G1 G2 G3, M1 M2, D1 D2 D3, N1 N2 N3). <b>Microtonal:</b> all 22 shrutis, Partch 43, harmonics 8–15, subharmonics 16–9, Pythagorean 12, and 17, 19, 22, 24, 31, 41, 53 and 72-EDO. <b>Maqam &amp; gamelan:</b> Rast, Bayati, Saba, Hijaz, Kurd, Nahawand (quarter-tone practice), slendro, pelog. Raga, thaat and melakarta scales can be edited on the shruti star; microtonal scales are fixed, and the star shows their degrees at their true positions. The taraf, the tanpura's first string and the dayan always take their pitches from the active scale.</p>
   <div class="foot"><span>TANTRI MANUAL</span><span>3</span></div>
 </div>
 
@@ -361,8 +361,8 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <table>
         <tr><td class="k">Sa (Hz)</td><td>55–440 Hz, default 138.59</td></tr>
         <tr><td class="k">Sa key</td><td>MIDI note of madhya Sa, 36–84, default 60</td></tr>
-        <tr><td class="k">Raga</td><td>25 ragas (loads the shrutis, taraf, tanpura)</td></tr>
-        <tr><td class="k">Raga lock</td><td>Off · Snap · Mute</td></tr>
+        <tr><td class="k">Scale</td><td>145 scales (ragas, thaats, melakartas, microtonal, maqam)</td></tr>
+        <tr><td class="k">Key map</td><td>Quantize · Steps</td></tr>
         <tr><td class="k">Room size</td><td>shared 8-line FDN reverb</td></tr>
         <tr><td class="k">Master</td><td>output level, into the limiter</td></tr>
         <tr><td class="k">Channels</td><td>sitar (Any), tabla (10), tanpura (16)</td></tr>

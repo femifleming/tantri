@@ -43,7 +43,7 @@ public:
     int saKey() const { return (int) apvts.getRawParameterValue ("saKey")->load(); }
 
     // meters for the UI (written by the audio thread, read by the editor timer)
-    std::atomic<float> swaraAct[12] {};
+    std::atomic<float> swaraAct[tantri::ActiveScale::kMax] {};   // activity per scale degree
     std::atomic<float> chikAct { 0 }, dayanAct { 0 }, bayanAct { 0 };
     std::atomic<int> lastBol { -1 };
     std::atomic<unsigned> strokeCount { 0 };
@@ -54,7 +54,9 @@ public:
     std::atomic<float> outPeak { 0 }, limitDb { 0 };   // pre-limiter peak, limiter gain reduction (dB, <= 0)
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
-    static juce::StringArray ragaNames();
+    static juce::StringArray scaleNames();
+    int scaleIndex() const { return (int) apvts.getRawParameterValue ("scale")->load(); }
+    tantri::ActiveScale activeScale() const { return tantri::makeScale (scaleIndex(), getTuning()); }
 
 private:
     void parameterChanged (const juce::String& id, float v) override;
@@ -68,6 +70,8 @@ private:
     tantri::Limiter limiter;
     std::atomic<uint64_t> tuningBits { tantri::parseRaga (tantri::kRagas[0].spec).v };
     std::atomic<unsigned> tuningVersion { 1 };
+    int lastScaleIdx = -1; unsigned lastTuningVer = 0, scaleVersion = 0;
+    tantri::ActiveScale scale;
     int tanpuraHeld = 0;
     float tablaPressure = 0;
     double sr = 48000;

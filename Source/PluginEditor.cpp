@@ -82,77 +82,111 @@ void Pill::mouseUp (const juce::MouseEvent& e)
 }
 
 // ---------------------------------------------------------------- Sitar tile: the 22-shruti star
-static float shrutiAngle (int s) { return float (tantri::shrutiCents (s) / 1200.0) * kTwoPi - kHalfPi; }
+static float centsAngle (double c) { return float (c / 1200.0) * kTwoPi - kHalfPi; }
+
+// the blades drawn on the star: all 22 shrutis for swara scales (the chosen ones long),
+// or every degree of a fixed microtonal scale
+std::vector<SitarTile::Blade> SitarTile::blades (const tantri::ActiveScale& sc, tantri::TuningBits t) const
+{
+    std::vector<Blade> b;
+    if (sc.editable)
+        for (int s = 0; s < 22; ++s)
+        {
+            int w = tantri::shrutiToSwara (s), deg = -1;
+            if (t.in (w) && t.shruti (w) == s)
+                for (int d = 0; d < sc.n; ++d) if (sc.swaraClass[d] == w) deg = d;
+            b.push_back ({ tantri::shrutiCents (s), deg, s });
+        }
+    else
+        for (int d = 0; d < sc.n; ++d) b.push_back ({ sc.cents[d], d, -1 });
+    return b;
+}
 
 void SitarTile::paint (juce::Graphics& g)
 {
     g.fillAll (col::tile);
     g.setColour (col::edge); g.drawRect (getLocalBounds(), 1);
     const juce::Point<float> c (184, 184);
+    const auto sc = proc.activeScale();
     const auto t = proc.getTuning();
-    // blades: the shruti chosen for each raga swara is long and carries a jewel
+    const auto bl = blades (sc, t);
+    const int dense = (int) bl.size();
+    const float wLong = std::min (0.075f, kTwoPi / std::max (dense, 1) * 0.32f);
+    const float wShort = std::min (0.055f, kTwoPi / std::max (dense, 1) * 0.25f);
     for (int pass = 0; pass < 2; ++pass)
-        for (int s = 0; s < 22; ++s)
+        for (int i = 0; i < dense; ++i)
         {
-            int w = tantri::shrutiToSwara (s);
-            bool chosen = t.in (w) && t.shruti (w) == s;
+            const auto& b = bl[(size_t) i];
+            bool chosen = b.degree >= 0;
             if ((pass == 1) != chosen) continue;
-            float a = shrutiAngle (s);
-            float glow = chosen ? act[w] : 0.0f;
-            bool hv = hovered == s;
-            auto k = kite (c, a, 58, chosen ? 168.0f : 118.0f, chosen ? 0.075f : 0.055f);
-            juce::Colour f = chosen ? col::white.interpolatedWith (col::gold2, glow * 0.7f) : col::white.withAlpha (t.in (w) ? 0.42f : 0.62f);
-            fill (g, k, f, hv ? col::white : col::gold, hv ? 3.4f : (chosen ? 3.0f : 2.2f));
-            if (chosen) gem (g, P (c, 140, a), 11.0f + glow * 3.0f, a, glow);
-            if (chosen && t.andolan (w))   // andolan swaras wear a small extra jewel
-                gem (g, P (c, 104, a), 6.0f, a + MathConstants<float>::pi, 0);
+            float a = centsAngle (b.cents);
+            float glow = chosen ? act[b.degree] : 0.0f;
+            bool hv = hovered == i;
+            auto k = kite (c, a, 58, chosen ? 168.0f : 118.0f, chosen ? wLong : wShort);
+            int w = b.shruti >= 0 ? tantri::shrutiToSwara (b.shruti) : -1;
+            juce::Colour f = chosen ? col::white.interpolatedWith (col::gold2, glow * 0.7f)
+                                    : col::white.withAlpha (w >= 0 && t.in (w) ? 0.42f : 0.62f);
+            fill (g, k, f, hv ? col::white : col::gold, hv ? 3.4f : (chosen ? (dense > 30 ? 1.4f : 3.0f) : 2.2f));
+            if (chosen && dense <= 30) gem (g, P (c, 140, a), (dense > 16 ? 7.0f : 11.0f) + glow * 3.0f, a, glow);
+            if (chosen && sc.andolan[b.degree]) gem (g, P (c, 104, a), 6.0f, a + MathConstants<float>::pi, 0);
         }
     fill (g, star (c, 22, 74, 56), col::orange, col::gold, 3);
     fill (g, star (c, 11, 54, 30), col::coral);
     fill (g, ngon (c, 22, 30), col::red);
     for (int i = 0; i < 22; ++i) fill (g, kite (c, i / 22.0f * kTwoPi, 8, 28, 0.12f), col::pink);
-    float anyAct = 0; for (float x : act) anyAct = std::max (anyAct, x);
+    float anyAct = 0; for (int d = 0; d < sc.n; ++d) anyAct = std::max (anyAct, act[d]);
     g.setColour (col::white);
     g.fillEllipse (juce::Rectangle<float> (10 + anyAct * 6, 10 + anyAct * 6).withCentre (c));
 
-    if (hovered >= 0)
+    if (hovered >= 0 && hovered < dense)
     {
-        int w = tantri::shrutiToSwara (hovered);
-        auto& sh = tantri::kShruti[(size_t) hovered];
-        bool chosen = t.in (w) && t.shruti (w) == hovered;
-        juce::String txt = juce::String (tantri::kSwaraName[w]).toUpperCase() + "  " + juce::String (sh.num) + "/" + juce::String (sh.den)
-                         + "  " + juce::String (juce::roundToInt (tantri::shrutiCents (hovered))) + " C";
+        const auto& b = bl[(size_t) hovered];
+        juce::String name, ratio;
+        if (b.shruti >= 0)
+        {
+            auto& sh = tantri::kShruti[(size_t) b.shruti];
+            name = b.degree >= 0 ? juce::String (sc.label[b.degree]) : juce::String (tantri::kSwaraName[tantri::shrutiToSwara (b.shruti)]);
+            ratio = juce::String (sh.num) + "/" + juce::String (sh.den);
+        }
+        else { name = sc.label[b.degree]; ratio = sc.ratio[b.degree]; }
+        juce::String txt = name.toUpperCase() + "  " + ratio + "  " + juce::String (b.cents, 1) + " C";
         g.setFont (font (11)); g.setColour (col::white);
         g.drawText (txt, 12, 8, 340, 16, juce::Justification::left);
         g.setColour (col::grey); g.setFont (font (10, false));
-        juce::String hint = hovered == 0 ? "SA IS FIXED" : chosen ? "CLICK TO REMOVE FROM THE RAGA" : "CLICK TO USE THIS SHRUTI";
+        juce::String hint = ! sc.editable ? "FIXED SCALE" : b.shruti == 0 ? "SA IS FIXED"
+                          : b.degree >= 0 ? "CLICK TO REMOVE FROM THE SCALE" : "CLICK TO USE THIS SHRUTI";
         g.drawText (hint, 12, 24, 340, 14, juce::Justification::left);
     }
 }
 
-int SitarTile::shrutiAt (juce::Point<float> p) const
+int SitarTile::bladeAt (juce::Point<float> p) const
 {
     auto d = p - juce::Point<float> (184, 184);
     float r = d.getDistanceFromOrigin();
     if (r < 60 || r > 178) return -1;
     float a = std::atan2 (d.y, d.x);
-    int best = -1; float bd = 0.09f;
-    for (int s = 0; s < 22; ++s)
+    auto bl = blades (proc.activeScale(), proc.getTuning());
+    int best = -1; float bd = std::min (0.09f, kTwoPi / std::max<int> (1, (int) bl.size()) * 0.5f);
+    for (int i = 0; i < (int) bl.size(); ++i)
     {
-        float diff = std::remainder (a - shrutiAngle (s), kTwoPi);
-        if (std::abs (diff) < bd) { bd = std::abs (diff); best = s; }
+        float diff = std::remainder (a - centsAngle (bl[(size_t) i].cents), kTwoPi);
+        if (std::abs (diff) < bd) { bd = std::abs (diff); best = i; }
     }
     return best;
 }
 void SitarTile::mouseMove (const juce::MouseEvent& e)
 {
-    int s = shrutiAt (e.position);
+    int s = bladeAt (e.position);
     if (s != hovered) { hovered = s; repaint(); }
-    setMouseCursor (s >= 0 ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+    setMouseCursor (s >= 0 && proc.activeScale().editable ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
 }
 void SitarTile::mouseDown (const juce::MouseEvent& e)
 {
-    int s = shrutiAt (e.position);
+    auto sc = proc.activeScale();
+    if (! sc.editable) return;
+    int i = bladeAt (e.position);
+    if (i < 0) return;
+    int s = blades (sc, proc.getTuning())[(size_t) i].shruti;
     if (s <= 0) return;
     auto t = proc.getTuning();
     int w = tantri::shrutiToSwara (s);
@@ -265,30 +299,34 @@ void TanpuraTile::mouseDown (const juce::MouseEvent& e)
 // ---------------------------------------------------------------- raga strip (3 saptaks)
 std::vector<RagaStrip::Slot> RagaStrip::slots() const
 {
-    auto t = proc.getTuning();
+    const auto sc = proc.activeScale();
+    const int maxSlots = std::max (1, (getWidth() - 48) / 34);
+    int octs = juce::jlimit (1, 3, maxSlots / std::max (1, sc.n));
+    int stride = std::max (1, (sc.n + maxSlots - 1) / maxSlots);   // very dense scales: every k-th degree
     std::vector<Slot> s;
-    for (int o = -1; o <= 1; ++o)
-        for (int w = 0; w < 12; ++w)
-            if (t.in (w)) s.push_back ({ w, o, 0 });
-    float step = std::min (54.0f, (getWidth() - 48.0f) / std::max<size_t> (1, s.size() - 1 + 1));
-    float x0 = 36;
-    for (size_t i = 0; i < s.size(); ++i) s[i].x = x0 + step * i;
+    int o0 = octs == 3 ? -1 : 0;
+    for (int o = o0; o < o0 + octs; ++o)
+        for (int d = 0; d < sc.n; d += stride) s.push_back ({ d, o, 0 });
+    float step = std::min (54.0f, (getWidth() - 72.0f) / std::max<size_t> (1, s.size() - 1));
+    for (size_t i = 0; i < s.size(); ++i) s[i].x = 36 + step * i;
     return s;
 }
 void RagaStrip::paint (juce::Graphics& g)
 {
     g.fillAll (col::tile);
     g.setColour (col::edge); g.drawRect (getLocalBounds(), 1);
-    auto t = proc.getTuning();
-    for (auto& s : slots())
+    const auto sc = proc.activeScale();
+    auto sl = slots();
+    float spacing = sl.size() > 1 ? sl[1].x - sl[0].x : 54;
+    for (auto& s : sl)
     {
         bool sa = s.swara == 0;
         float glow = act[s.swara];
-        gem (g, { s.x, 24 }, sa ? 13.0f : 10.0f, -kHalfPi, glow);
-        auto& sh = tantri::kShruti[(size_t) t.shruti (s.swara)];
-        juce::String lbl = juce::String (tantri::kSwaraName[s.swara]).toUpperCase() + " " + juce::String (sh.num) + "/" + juce::String (sh.den);
-        g.setFont (font (10)); g.setColour (sa ? col::white : col::grey);
-        g.drawText (lbl, juce::Rectangle<float> (60, 12).withCentre ({ s.x, 50 }), juce::Justification::centred);
+        gem (g, { s.x, 24 }, (sa ? 13.0f : 10.0f) * std::min (1.0f, spacing / 40.0f), -kHalfPi, glow);
+        juce::String lbl = juce::String (sc.label[s.swara]).toUpperCase();
+        if (spacing >= 46) lbl << " " << sc.ratio[s.swara];
+        g.setFont (font (spacing >= 30 ? 10.0f : 8.0f)); g.setColour (sa ? col::white : col::grey);
+        g.drawText (lbl, juce::Rectangle<float> (std::max (30.0f, spacing + 6), 12).withCentre ({ s.x, 50 }), juce::Justification::centred);
         // Bhatkhande octave dots: below = mandra, above = taar
         g.setColour (col::gold2);
         if (s.oct < 0) g.fillEllipse (s.x - 1.5f, 57, 3, 3);
@@ -297,10 +335,15 @@ void RagaStrip::paint (juce::Graphics& g)
 }
 void RagaStrip::mouseDown (const juce::MouseEvent& e)
 {
-    for (auto& s : slots())
-        if (std::abs (e.position.x - s.x) < 18)
+    const auto sc = proc.activeScale();
+    auto sl = slots();
+    float half = sl.size() > 1 ? (sl[1].x - sl[0].x) * 0.5f : 18;
+    for (auto& s : sl)
+        if (std::abs (e.position.x - s.x) < half)
         {
-            heldNote = proc.saKey() + s.oct * 12 + s.swara;
+            bool steps = (int) getParam (proc, "map") == tantri::mapSteps;
+            heldNote = proc.saKey() + (steps ? s.oct * sc.n + s.swara : juce::roundToInt ((s.oct * 1200.0 + sc.cents[s.swara]) / 100.0));
+            heldNote = juce::jlimit (0, 127, heldNote);
             int ch = (int) getParam (proc, "sitarCh"); if (ch == 0) ch = 1;
             proc.keyboard.noteOn (ch, heldNote, 0.8f);
             return;
@@ -356,14 +399,13 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
 
     ragaPill.text = [this]
     {
-        int i = (int) getParam (proc, "raga");
-        return juce::String (tantri::kRagas[(size_t) juce::jlimit (0, (int) tantri::kRagas.size() - 1, i)].name).toUpperCase()
-             + (proc.tuningIsCustom() ? " *" : "");
+        const auto& e = tantri::scaleLibrary()[(size_t) juce::jlimit (0, tantri::numScales() - 1, proc.scaleIndex())];
+        return juce::String (e.name).toUpperCase() + (proc.tuningIsCustom() ? " *" : "");
     };
     ragaPill.onClick = [this] { showRagaMenu(); };
 
-    lockPill.text = [this] { static const char* n[3] = { "OFF", "SNAP", "MUTE" }; return juce::String (n[juce::jlimit (0, 2, (int) getParam (proc, "lock"))]); };
-    lockPill.onClick = [this] { setParam (proc, "lock", float (((int) getParam (proc, "lock") + 1) % 3)); lockPill.repaint(); };
+    lockPill.text = [this] { return juce::String ((int) getParam (proc, "map") == tantri::mapSteps ? "STEPS" : "QUANTIZE"); };
+    lockPill.onClick = [this] { setParam (proc, "map", (int) getParam (proc, "map") == 0 ? 1.0f : 0.0f); lockPill.repaint(); strip.repaint(); };
 
     meendPill.text = [this] { return juce::String (juce::CharPointer_UTF8 ("\xc2\xb1")) + juce::String (juce::roundToInt (getParam (proc, "s_meend"))) + " C"; };
     meendPill.onDragStart = [this] { proc.apvts.getParameter ("s_meend")->beginChangeGesture(); };
@@ -435,8 +477,10 @@ void Canvas::paint (juce::Graphics& g)
     {
         float x = 28.0f + i * 388;
         g.setColour (col::white); g.setFont (font (21));
-        g.drawText (juce::CharPointer_UTF8 (names[i].a), juce::Rectangle<float> (x, 452, 200, 28), juce::Justification::centredLeft);
-        float w = juce::GlyphArrangement::getStringWidth (font (21), juce::CharPointer_UTF8 (names[i].a));
+        juce::String title = juce::CharPointer_UTF8 (names[i].a);
+        if (i == 0) title = "SITAR " + juce::String (proc.activeScale().n);   // degrees of the active scale
+        g.drawText (title, juce::Rectangle<float> (x, 452, 200, 28), juce::Justification::centredLeft);
+        float w = juce::GlyphArrangement::getStringWidth (font (21), title);
         juce::String sub = juce::CharPointer_UTF8 (names[i].b);
         if (i == 2)
         {
@@ -450,7 +494,8 @@ void Canvas::paint (juce::Graphics& g)
 
 void Canvas::tick()
 {
-    for (int w = 0; w < 12; ++w)
+    if (proc.scaleIndex() != lastScale || proc.activeScale().n != lastN) { lastScale = proc.scaleIndex(); lastN = proc.activeScale().n; resized(); repaint(); }
+    for (int w = 0; w < tantri::ActiveScale::kMax; ++w)
     {
         float a = proc.swaraAct[w].load();
         sitarTile.act[w] = std::max (a, sitarTile.act[w] * 0.86f);
@@ -497,21 +542,44 @@ void Canvas::editValue (Pill& pill, const char* paramId)
 
 void Canvas::showRagaMenu()
 {
+    using namespace tantri;
     juce::PopupMenu m;
-    int cur = (int) getParam (proc, "raga");
-    for (int i = 0; i < (int) tantri::kRagas.size(); ++i)
-        m.addItem (i + 1, tantri::kRagas[(size_t) i].name, true, i == cur);
+    const auto& lib = scaleLibrary();
+    int cur = proc.scaleIndex();
+    static const char* chakras[12] = { "Indu", "Netra", "Agni", "Veda", "Bana", "Rutu", "Rishi", "Vasu", "Brahma", "Disi", "Rudra", "Aditya" };
+    for (int f = 0; f < kNumFamilies; ++f)
+    {
+        juce::PopupMenu sub;
+        if (f == famMela)
+        {
+            juce::PopupMenu ch[12];
+            int k = 0;
+            for (int i = 0; i < (int) lib.size(); ++i)
+                if (lib[(size_t) i].family == famMela) { ch[k / 6].addItem (i + 1, lib[(size_t) i].name, true, i == cur); ++k; }
+            for (int c = 0; c < 12; ++c)
+                sub.addSubMenu (juce::String (c + 1) + "  " + chakras[c] + "  (" + juce::String (c * 6 + 1) + "-" + juce::String (c * 6 + 6) + ")", ch[c]);
+        }
+        else
+            for (int i = 0; i < (int) lib.size(); ++i)
+                if (lib[(size_t) i].family == f) sub.addItem (i + 1, lib[(size_t) i].name, true, i == cur);
+        bool here = lib[(size_t) juce::jlimit (0, (int) lib.size() - 1, cur)].family == f;
+        m.addSubMenu (kFamilyName[f], sub, true, nullptr, here);
+    }
     m.addSeparator();
-    m.addItem (100, "Reload raga (discard shruti edits)", proc.tuningIsCustom());
+    m.addItem (10000, "Reload scale (discard shruti edits)", proc.tuningIsCustom());
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&ragaPill), [this] (int r)
     {
-        if (r >= 1 && r <= (int) tantri::kRagas.size())
+        const auto& lib2 = tantri::scaleLibrary();
+        if (r >= 1 && r <= (int) lib2.size())
         {
-            setParam (proc, "raga", float (r - 1));
-            proc.setTuning (tantri::parseRaga (tantri::kRagas[(size_t) r - 1].spec));
+            setParam (proc, "scale", float (r - 1));
+            if (lib2[(size_t) r - 1].swara) proc.setTuning (lib2[(size_t) r - 1].bits);
         }
-        else if (r == 100)
-            proc.setTuning (tantri::parseRaga (tantri::kRagas[(size_t) (int) getParam (proc, "raga")].spec));
+        else if (r == 10000)
+        {
+            const auto& e = lib2[(size_t) proc.scaleIndex()];
+            if (e.swara) proc.setTuning (e.bits);
+        }
         resized(); repaint();
     });
 }

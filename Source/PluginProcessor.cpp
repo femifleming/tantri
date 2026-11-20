@@ -8,10 +8,10 @@ using APB = juce::AudioParameterBool;
 using API = juce::AudioParameterInt;
 using NR = juce::NormalisableRange<float>;
 
-juce::StringArray TantriProcessor::ragaNames()
+juce::StringArray TantriProcessor::scaleNames()
 {
     juce::StringArray s;
-    for (auto& r : kRagas) s.add (r.name);
+    for (auto& e : scaleLibrary()) s.add (e.name);
     return s;
 }
 
@@ -34,8 +34,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout TantriProcessor::createLayou
     // global
     { NR r (55, 440); r.setSkewForCentre (140); F ("saHz", "Sa (Hz)", r, 138.59f, [] (float v) { return juce::String (v, 2) + " Hz"; }); }
     p.push_back (std::make_unique<API> (juce::ParameterID { "saKey", 1 }, "Sa key", 36, 84, 60));
-    p.push_back (std::make_unique<APC> (juce::ParameterID { "raga", 1 }, "Raga", ragaNames(), 0));
-    p.push_back (std::make_unique<APC> (juce::ParameterID { "lock", 1 }, "Raga lock", juce::StringArray { "Off", "Snap", "Mute" }, 0));
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "scale", 1 }, "Scale", scaleNames(), 0));
+    p.push_back (std::make_unique<APC> (juce::ParameterID { "map", 1 }, "Key map", juce::StringArray { "Quantize", "Steps" }, 0));
     F ("master", "Master", lev, 0.8f, db);
     F ("roomSize", "Room size", unit, 0.45f, pct);
     juce::StringArray chans { "Any" };
@@ -90,23 +90,24 @@ TantriProcessor::TantriProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "TANTRI", createLayout())
 {
-    apvts.addParameterListener ("raga", this);
+    apvts.addParameterListener ("scale", this);
 }
-TantriProcessor::~TantriProcessor() { apvts.removeParameterListener ("raga", this); }
+TantriProcessor::~TantriProcessor() { apvts.removeParameterListener ("scale", this); }
 
 void TantriProcessor::parameterChanged (const juce::String& id, float v)
 {
-    if (id == "raga")
+    if (id == "scale")
     {
-        int i = juce::jlimit (0, (int) kRagas.size() - 1, juce::roundToInt (v));
-        setTuning (parseRaga (kRagas[(size_t) i].spec));
+        const auto& e = scaleLibrary()[(size_t) juce::jlimit (0, numScales() - 1, juce::roundToInt (v))];
+        if (e.swara) setTuning (e.bits);
+        else tuningVersion.fetch_add (1);
     }
 }
 
 bool TantriProcessor::tuningIsCustom() const
 {
-    int i = (int) apvts.getRawParameterValue ("raga")->load();
-    return parseRaga (kRagas[(size_t) juce::jlimit (0, (int) kRagas.size() - 1, i)].spec).v != tuningBits.load();
+    const auto& e = scaleLibrary()[(size_t) juce::jlimit (0, numScales() - 1, scaleIndex())];
+    return e.swara && e.bits.v != tuningBits.load();
 }
 
 bool TantriProcessor::isBusesLayoutSupported (const BusesLayout& l) const
@@ -129,24 +130,36 @@ void TantriProcessor::readParams()
     auto v = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
     TuningBits t { tuningBits.load() };
     double sa = v ("saHz");
-    sitar.setTuning (t, sa, tuningVersion.load());
+    // rebuild the active scale when the choice or the shruti edits change (no allocation)
+    int si = scaleIndex();
+    unsigned tv = tuningVersion.load();
+    if (si != lastScaleIdx || tv != lastTuningVer)
+    {
+        scale = makeScale (si, t);
+        lastScaleIdx = si; lastTuningVer = tv; ++scaleVersion;
+    }
+    sitar.setScale (scale, sa, scaleVersion);
     SitarParams sp;
     sp.mizrab = v ("s_mizrab"); sp.jawari = v ("s_jawari"); sp.meendCents = v ("s_meend");
     sp.taraf = v ("s_taraf"); sp.chikari = v ("s_chikari"); sp.gourd = v ("s_gourd"); sp.gamak = v ("s_gamak");
     sp.decay = v ("s_decay"); sp.pluckPos = v ("s_pluck"); sp.release = v ("s_release"); sp.level = v ("s_level");
     sitar.setParams (sp);
     TablaParams tp;
-    static const float dayanR[5] = { 2.0f, 3.0f, 8.0f / 3.0f, 0, 4.0f };
+    // dayan: Sa, or the scale's own Pa / Ma / Ni, or upper Sa (one octave above the sitar's Sa)
     int dc = (int) v ("t_dayan");
-    tp.dayanRatio = dc == 3 ? float (t.ratio (11)) * 2.0f : dayanR[dc];
-    if (dc == 2) tp.dayanRatio = float (t.ratio (t.in (6) && ! t.in (5) ? 6 : 5)) * 2.0f;
+    double dcents = 0;
+    if (dc == 1) dcents = nearestCents (scale, 702, 25, 701.955);
+    else if (dc == 2) dcents = nearestCents (scale, 498, 40, 498.045);
+    else if (dc == 3) dcents = nearestCents (scale, 1088, 40, 1088.269);
+    else if (dc == 4) dcents = 1200;
+    tp.dayanRatio = float (2.0 * std::pow (2.0, dcents / 1200.0));
     tp.bayanHz = v ("t_bayan"); tp.syahi = v ("t_syahi"); tp.glide = v ("t_glide"); tp.press = v ("t_press");
     tp.ring = v ("t_ring"); tp.snap = v ("t_snap"); tp.level = v ("t_level");
     tabla.setParams (tp, sa);
     TanpuraParams np;
     np.on = v ("n_on") > 0.5f; np.cycleBpm = v ("n_cycle"); np.jawari = v ("n_jawari"); np.first = (int) v ("n_first");
     np.human = v ("n_human"); np.octave = (int) v ("n_octave") - 1; np.width = v ("n_width"); np.level = v ("n_level");
-    tanpura.setParams (np, t, sa);
+    tanpura.setParams (np, scale, scaleVersion, sa);
     tanpuraFirst.store (tanpura.firstStringChoice());
     reverb.setSize (v ("roomSize"));
 }
@@ -160,7 +173,7 @@ void TantriProcessor::handleMidi (const juce::MidiMessage& m)
     const int sCh = (int) v ("sitarCh"), tCh = (int) v ("tablaCh"), nCh = (int) v ("tanpuraCh");
     const int key = saKey();
     const bool split = v ("split") > 0.5f;
-    const int lock = (int) v ("lock");
+    const int mapMode = (int) v ("map");
 
     if (m.isController() && m.getControllerNumber() == 123) { sitar.allOff(); return; }
 
@@ -190,7 +203,7 @@ void TantriProcessor::handleMidi (const juce::MidiMessage& m)
             else sitar.chikariStrike (m.getFloatVelocity());                         // below it: chikari
             return;
         }
-        sitar.noteOn (n, m.getFloatVelocity(), key, lock);
+        sitar.noteOn (n, m.getFloatVelocity(), key, mapMode);
     }
     else if (m.isNoteOff())
     {
@@ -244,7 +257,7 @@ void TantriProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     while (it != midi.end()) { handleMidi ((*it).getMessage()); ++it; }
 
     // meters
-    for (int w = 0; w < 12; ++w) { swaraAct[w].store (sitar.activity[w]); sitar.activity[w] *= 0.6f; }
+    for (int w = 0; w < ActiveScale::kMax; ++w) { swaraAct[w].store (sitar.activity[w]); sitar.activity[w] *= 0.6f; }
     chikAct.store (std::max (chikAct.load() * 0.0f, sitar.chikFlash)); sitar.chikFlash *= 0.7f;
     dayanAct.store (tabla.dayanFlash); tabla.dayanFlash *= 0.75f;
     bayanAct.store (tabla.bayanFlash); tabla.bayanFlash *= 0.75f;

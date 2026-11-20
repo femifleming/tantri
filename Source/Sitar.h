@@ -2,7 +2,7 @@
 // Sitar: polyphonic jawari strings + 13 taraf (sympathetic) strings tuned to the raga +
 // 2 chikari drone strings + gourd/tabli body. Pitches come only from Sa (Hz) x shruti ratios.
 #include "Dsp.h"
-#include "Tuning.h"
+#include "Scales.h"
 
 namespace tantri
 {
@@ -41,24 +41,22 @@ public:
         tuningVersion = ~0u;
     }
 
-    void setTuning (TuningBits t, double saHz, unsigned version)
+    void setScale (const ActiveScale& sc, double saHz, unsigned version)
     {
         if (version == tuningVersion && saHz == sa) return;
-        tuning = t; sa = saHz; tuningVersion = version;
-        // taraf: the raga's swaras ascending from the one below upper Sa, 13 strings
+        scale = sc; sa = saHz; tuningVersion = version;
+        // taraf: the scale's degrees ascending from the one below upper Sa, 13 strings
         double tarafSa = sa * 2.0;
         int idx = 0;
-        int lastBelow = 11;
-        while (lastBelow > 0 && ! tuning.in (lastBelow)) --lastBelow;
-        tarafHz[idx++] = tarafSa * 0.5 * tuning.ratio (lastBelow);
+        tarafHz[idx++] = tarafSa * std::pow (2.0, (scale.cents[scale.n - 1] - 1200.0) / 1200.0);
         for (int oct = 0; idx < kTaraf; ++oct)
-            for (int w = 0; w < 12 && idx < kTaraf; ++w)
-                if (tuning.in (w)) tarafHz[idx++] = tarafSa * tuning.ratio (w) * std::pow (2.0, oct);
+            for (int d = 0; d < scale.n && idx < kTaraf; ++d)
+                tarafHz[idx++] = tarafSa * std::pow (2.0, (oct * 1200.0 + scale.cents[d]) / 1200.0);
         for (int i = 0; i < kTaraf; ++i) taraf[i].tune (tarafHz[i], 3.5, 0.55);
         chik[0].configure (sa * 2.0, 5, 0.06); chik[1].configure (sa * 4.0, 5, 0.06);
         chik[0].setJawari (60); chik[1].setJawari (50);
         for (auto& c : chik) { c.setLoss (4.0, 0.7, sa * 2.0); c.snapFreq(); }
-        // retune held voices to the new shrutis
+        // retune held voices to the new scale
         for (auto& v : voices) if (v.active) v.retune = true;
     }
 
@@ -72,27 +70,10 @@ public:
     void setModWheel (float m) { modWheel = m; }
     void setChannelPressure (float p) { chanPress = p; }
 
-    int swaraOf (int note, int saKey, int lock, int& octOut) const
+    void noteOn (int note, float vel, int saKey, int mapMode)
     {
-        int rel = note - saKey;
-        int oct = (rel >= 0) ? rel / 12 : -((11 - rel) / 12);
-        int w = rel - oct * 12;
-        if (lock >= 1 && ! tuning.in (w))
-        {
-            if (lock == 2) return -1;
-            int s = snapToRaga (tuning, w);
-            if (s < 0) { s += 12; --oct; } else if (s >= 12) { s -= 12; ++oct; }
-            w = s;
-        }
-        octOut = oct;
-        return w;
-    }
-
-    void noteOn (int note, float vel, int saKey, int lock)
-    {
-        int oct = 0;
-        int w = swaraOf (note, saKey, lock, oct);
-        if (w < 0) return;
+        int oct = 0, w = 0;
+        mapNote (scale, note, saKey, mapMode, w, oct);   // quantise / step into the active scale
         Voice* v = nullptr;
         for (auto& x : voices) if (x.active && x.note == note) { v = &x; break; }   // re-pluck same string
         bool fresh = false;
@@ -188,10 +169,9 @@ public:
         outR = (m - side) * prm.level * 5.2f;
     }
 
-    float activity[12] {};
+    float activity[ActiveScale::kMax] {};   // per scale degree
     float chikFlash = 0;
     double tarafHz[kTaraf] {};
-    const TuningBits& getTuning() const { return tuning; }
 
 private:
     struct Voice
@@ -203,7 +183,7 @@ private:
         double baseHz = 100, lfo = 0;
     };
 
-    double noteHz (int w, int oct) const { return sa * tuning.ratio (w) * std::pow (2.0, oct); }
+    double noteHz (int d, int oct) const { return sa * std::pow (2.0, degreeCents (scale, d, oct) / 1200.0); }
 
     void applyLoss (Voice& v)
     {
@@ -229,20 +209,20 @@ private:
             if (! v.active) continue;
             ++count;
             v.age++;
-            if (v.retune) { v.baseHz = noteHz (v.swara, v.oct); applyLoss (v); v.retune = false; }
-            double nextR = nextSwaraRatio (tuning, v.swara);           // meend target: next raga swara
+            if (v.retune) { v.swara = std::min (v.swara, scale.n - 1); v.baseHz = noteHz (v.swara, v.oct); applyLoss (v); v.retune = false; }
+            double nextR = std::pow (2.0, stepUpCents (scale, v.swara) / 1200.0);   // meend target: next scale degree
             double cents = bend * prm.meendCents;
             double atAmt = std::max<double> (v.polyAT, chanPress);
             cents += atAmt * 1200.0 * std::log2 (nextR);              // pressure pulls to the next swara
             double gamakRate = 5.5, depth = 0;
             if (modWheel > 0.001f) depth = modWheel * prm.gamak * 1200.0 * std::log2 (nextR) * 0.5;
-            if (tuning.andolan (v.swara)) { gamakRate = 0.7; depth = std::max (depth, 18.0 * prm.gamak * 2.0); }
+            if (scale.andolan[v.swara]) { gamakRate = 0.7; depth = std::max (depth, 18.0 * prm.gamak * 2.0); }
             v.lfo += dt * gamakRate * 2 * kPi;
             if (depth > 0) cents += depth * 0.5 * (1.0 - std::cos (v.lfo));   // gamak oscillates upward like a pulled string
             double f = v.baseHz * std::pow (2.0, cents / 1200.0);
             v.a.setFreq (f);
             v.b.setFreq (f * std::pow (2.0, 0.6 / 1200.0));
-            v.pan = float (std::clamp ((v.oct * 12 + v.swara - 6) / 40.0, -0.35, 0.35));
+            v.pan = float (std::clamp ((v.oct * 1200 + scale.cents[v.swara] - 600) / 4000.0, -0.35, 0.35));
             float lev = v.a.level();
             if (! v.held && lev < 1e-9f && v.age > 200) v.active = false;
             if (v.held && lev < 1e-11f && v.age > 4000) v.active = false;
@@ -262,7 +242,7 @@ private:
     ModalBody body;
     Biquad bodyLP;
     DcBlock dc;
-    TuningBits tuning = parseRaga (kRagas[0].spec);
+    ActiveScale scale = makeScale (0, parseRaga (kRagas[0].spec));
     unsigned tuningVersion = ~0u;
     SitarParams prm;
     Rng rng;

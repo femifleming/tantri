@@ -3,7 +3,7 @@
 // two polarisations, both grazing a wide flat bridge whose contact is opened by the jawari thread;
 // that is where the slow "swirl" of harmonics comes from.
 #include "Dsp.h"
-#include "Tuning.h"
+#include "Scales.h"
 
 namespace tantri
 {
@@ -35,10 +35,11 @@ public:
         configured = false;
     }
 
-    void setParams (const TanpuraParams& p, const TuningBits& t, double saHz)
+    void setParams (const TanpuraParams& p, const ActiveScale& sc, unsigned version, double saHz)
     {
-        bool retune = ! configured || p.first != prm.first || p.octave != prm.octave || saHz != sa || t.v != tuning.v;
-        prm = p; tuning = t; sa = saHz;
+        bool retune = ! configured || p.first != prm.first || p.octave != prm.octave || saHz != sa || version != scaleVersion;
+        prm = p; sa = saHz;
+        if (version != scaleVersion) { scale = sc; scaleVersion = version; }
         if (retune) configure();
         double c = 0.0035 * std::pow (0.3, prm.jawari);
         double jd = 30.0 * std::pow (prm.jawari, 1.3);
@@ -48,9 +49,9 @@ public:
     int firstStringChoice() const
     {
         if (prm.first != 0) return prm.first;
-        if (tuning.in (7)) return 1;                       // Pa
-        if (tuning.in (5) || tuning.in (6)) return 2;      // Ma
-        return 3;                                          // Ni
+        if (nearestCents (scale, 702, 25, -1) >= 0) return 1;                                     // Pa
+        if (nearestCents (scale, 498, 40, -1) >= 0 || nearestCents (scale, 590, 30, -1) >= 0) return 2;  // Ma
+        return 3;                                                                                 // Ni
     }
 
     inline void tick (float& outL, float& outR)
@@ -85,15 +86,17 @@ private:
     void configure()
     {
         double base = sa * std::pow (2.0, prm.octave);
-        double firstR = 0.75;
+        // the first string takes the scale's own pitch for Pa / Ma / Ni (one octave down)
+        double c = 702;
         switch (firstStringChoice())
         {
-            case 1: firstR = 0.75; break;
-            case 2: firstR = tuning.ratio (tuning.in (6) && ! tuning.in (5) ? 6 : 5) * 0.5; break;
-            case 3: firstR = tuning.ratio (11) * 0.5; break;
-            case 4: firstR = tuning.ratio (10) * 0.5; break;
+            case 1: c = nearestCents (scale, 702, 25, 701.955); break;
+            case 2: { double m = nearestCents (scale, 498, 40, -1); c = m >= 0 ? m : nearestCents (scale, 590, 30, 498.045); } break;
+            case 3: c = nearestCents (scale, 1088, 40, 1088.269); break;
+            case 4: c = nearestCents (scale, 1018, 40, 1017.596); break;
             default: break;
         }
+        double firstR = std::pow (2.0, (c - 1200.0) / 1200.0);
         stringHz[0] = base * firstR; stringHz[1] = base; stringHz[2] = base; stringHz[3] = base * 0.5;
         for (int i = 0; i < 4; ++i)
         {
@@ -153,7 +156,8 @@ private:
     Biquad lp;
     DcBlock dcL, dcR;
     TanpuraParams prm;
-    TuningBits tuning;
+    ActiveScale scale = makeScale (0, parseRaga (kRagas[0].spec));
+    unsigned scaleVersion = ~0u;
     Rng rng;
     float coupling = 0;
     int step = 0;

@@ -82,37 +82,62 @@ static double measureF0 (const float* x, int n, double expect)
     return kFs / (best + d);
 }
 
+static int scaleIndexOf (const char* name)
+{
+    const auto& lib = tantri::scaleLibrary();
+    for (int i = 0; i < (int) lib.size(); ++i) if (lib[(size_t) i].name == name) return i;
+    std::printf ("no scale %s\n", name); return 0;
+}
+
 static int testPitch()
 {
     double worst = 0; int count = 0;
+    std::printf ("%d scales in the library\n", tantri::numScales());
     for (float jaw : { 0.0f, 0.7f })
     {
         std::printf ("jawari %.1f\n", jaw);
-        for (int ri : { 0, 2, 10, 24 })   // Yaman, Bhairavi, Darbari, all 12
+        for (const char* nm : { "Yaman", "Bhairavi", "Darbari Kanada", "15 Mayamalavagowla", "22 Shrutis (all)", "Partch 43", "53-EDO", "Maqam Rast" })
         {
             auto p = make();
-            set (*p, "raga", (float) ri);
+            int si = scaleIndexOf (nm);
+            set (*p, "scale", (float) si); set (*p, "map", 1.0f);   // steps: every degree on its own key
             set (*p, "n_on", 0); set (*p, "s_jawari", jaw); set (*p, "s_taraf", 0); set (*p, "s_chikari", 0);
-            set (*p, "s_gourd", 0); set (*p, "s_room", 0); set (*p, "t_room", 0); set (*p, "n_room", 0);
-            set (*p, "s_gamak", 0);   // no andolan while measuring
-            auto t = p->getTuning();
-            std::printf ("  %-16s", tantri::kRagas[(size_t) ri].name);
+            set (*p, "s_gourd", 0); set (*p, "s_room", 0); set (*p, "t_room", 0); set (*p, "n_room", 0); set (*p, "s_gamak", 0);
+            auto sc = p->activeScale();
+            double w1 = 0; int c1 = 0;
+            // all degrees of the middle octave (dense scales: every 4th) + a few in the octaves around it
+            int stride = sc.n > 24 ? 4 : 1;
             for (int oct = -1; oct <= 1; ++oct)
-                for (int w = 0; w < 12; ++w)
+                for (int d = 0; d < sc.n; d += (oct == 0 ? stride : std::max (stride, sc.n / 3)))
                 {
-                    if (! t.in (w)) continue;
-                    int note = 60 + oct * 12 + w;
+                    int note = 60 + oct * sc.n + d;
+                    if (note < 48 && oct < 0) note = 60 + oct * sc.n + d;   // steps can go below the split for dense scales
+                    if (note < 48 || note > 127) continue;
                     auto b = render (*p, { { 0.01, juce::MidiMessage::noteOn (1, note, 0.8f) }, { 1.6, juce::MidiMessage::noteOff (1, note) } }, 2.2);
-                    double expect = 138.59 * t.ratio (w) * std::pow (2.0, oct);
+                    double expect = 138.59 * std::pow (2.0, (oct * 1200.0 + sc.cents[d]) / 1200.0);
                     double f = measureF0 (b.getReadPointer (0) + int (0.5 * kFs), int (0.9 * kFs), expect);
                     double cents = 1200 * std::log2 (f / expect);
-                    worst = std::max (worst, std::abs (cents)); ++count;
-                    if (oct == 0) std::printf (" %s%+.2f", tantri::kSwaraName[w], cents);
+                    w1 = std::max (w1, std::abs (cents)); ++c1;
                 }
-            std::printf ("\n");
+            std::printf ("  %-20s %3d degrees  %3d notes  worst %.2f c\n", nm, sc.n, c1, w1);
+            worst = std::max (worst, w1); count += c1;
         }
     }
     std::printf ("pitch: %d notes, worst error %.3f cents\n", count, worst);
+    // quantize mapping checks (Yaman: S R G M' P D N)
+    {
+        auto p = make(); set (*p, "scale", (float) scaleIndexOf ("Yaman"));
+        auto sc = p->activeScale(); int bad = 0;
+        auto chk = [&] (int note, const char* lab, int oct)
+        {
+            int d, o; tantri::mapNote (sc, note, 60, tantri::mapQuantize, d, o);
+            if (std::string (sc.label[d]) != lab || o != oct) { ++bad; std::printf ("  quantize %d -> %s/%d (want %s/%d)\n", note, sc.label[d], o, lab, oct); }
+        };
+        chk (60, "Sa", 0); chk (61, "Sa", 0); chk (62, "Re", 0); chk (63, "Ga", 0); chk (64, "Ga", 0); chk (65, "Ma'", 0);
+        chk (66, "Ma'", 0); chk (67, "Pa", 0); chk (69, "Dha", 0); chk (71, "Ni", 0); chk (72, "Sa", 1); chk (59, "Ni", -1);
+        std::printf ("quantize mapping: %s\n", bad ? "FAIL" : "ok");
+        worst += bad * 100;
+    }
     return worst < 3.0 ? 0 : 1;
 }
 
@@ -359,6 +384,8 @@ static void spectrogram (const juce::File& in, const juce::File& out)
 static void shot (const juce::File& out)
 {
     auto p = make();
+    if (auto* nm = std::getenv ("SHOT_SCALE")) set (*p, "scale", (float) scaleIndexOf (nm));
+    if (std::getenv ("SHOT_STEPS")) set (*p, "map", 1.0f);
     // play a bit so the UI shows activity
     std::vector<Ev> ev { { 0.01, juce::MidiMessage::noteOn (1, 64, 0.9f) }, { 0.05, juce::MidiMessage::noteOn (1, 71, 0.8f) },
                          { 0.3, juce::MidiMessage::noteOn (10, 36 + tantri::Dha, 0.9f) } };

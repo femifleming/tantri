@@ -16,9 +16,9 @@ The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.
 | **Tabla** | Modal synthesis: complex one-pole resonators | Dayan modes pulled onto Raman's harmonic series by the **syahi** (continuous from a plain membrane to fully loaded); Bessel mode shapes set each stroke's excitation; damping fingers persist between strokes; degenerate mode pairs beat; tension modulation; bayan wrist pressure and Ghe glide |
 | **Tanpura** | Four jawari strings, two polarisations each | Classic Pa–Sa–Sa–sa cycle with a pause; **Auto** first string (Pa, else Ma, else Ni, from the raga); thread jawari swirl; slow drift; humanised plucking |
 
-**Tuning.** Sa is set in Hz, and every pitch is Sa × a just ratio from the **22 shrutis**. The 25 ragas choose the shruti for each swara (for example ati-komal re 256/243 in Bhairav) and mark andolan swaras. You can edit the tuning live on the shruti star. The raga lock can be Off, Snap or Mute.
+**Tuning.** Sa is set in Hz, and every pitch is Sa × a ratio from the chosen **scale**. There are 145: 42 Hindustani ragas (each with its own shrutis and andolan swaras), the 10 thaats, all **72 Carnatic melakartas**, and microtonal systems (all 22 shrutis, Partch 43, harmonic and subharmonic series, Pythagorean, 17/19/22/24/31/41/53/72-EDO), plus maqamat and gamelan. Incoming MIDI is **quantised** to the scale (nearest pitch), or with **Steps** each key is the next degree, which reaches every pitch of dense scales. Swara scales can be edited live on the shruti star.
 
-**Measured** (`TantriTest --pitch`): 198 notes across 4 ragas and 3 octaves, worst error **0.3 cents** without jawari and **1.5 cents** with it.
+**Measured** (`TantriTest --pitch`): 266 notes across ragas, a melakarta, 22 shrutis, Partch 43, 53-EDO and Rast; worst error **0.23 cents** without jawari and **1.5 cents** with it.
 
 **Playing.** Pitch-bend gives meend (never quantised). Poly or channel aftertouch glides a note to the next raga swara, and the mod wheel adds gamak. Keys 36–47 play tabla bols, and so does channel 10. Keys below 36 strike the chikari.
 
@@ -52,6 +52,7 @@ $T --shot ui.png      # editor screenshot
 
 ```
 Source/Tuning.h      shrutis, swaras, ragas
+Source/Scales.h      scale library (145) + quantize / steps key mapping
 Source/Dsp.h         ContactString (waveguide + jawari), SympString, ModalBody, FDN reverb, Limiter
 Source/Sitar.h       voices, meend/gamak/andolan, taraf, chikari, gourd
 Source/Tabla.h       modal drums, strokes (bols), bayan pressure

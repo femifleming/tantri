@@ -49,9 +49,11 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override { hovered = -1; repaint(); }
     void mouseDown (const juce::MouseEvent&) override;
-    float act[12] {};
+    float act[tantri::ActiveScale::kMax] {};
+    struct Blade { double cents; int degree; int shruti; };
 private:
-    int shrutiAt (juce::Point<float>) const;
+    std::vector<Blade> blades (const tantri::ActiveScale&, tantri::TuningBits) const;
+    int bladeAt (juce::Point<float>) const;
     TantriProcessor& proc;
     int hovered = -1;
 };
@@ -85,7 +87,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
-    float act[12] {};
+    float act[tantri::ActiveScale::kMax] {};
 private:
     struct Slot { int swara, oct; float x; };
     std::vector<Slot> slots() const;
@@ -112,11 +114,12 @@ private:
     TablaTile tablaTile;
     TanpuraTile tanpuraTile;
     RagaStrip strip;
-    Pill saPill { "SA" }, ragaPill { "RAGA" }, lockPill { "LOCK" }, meendPill { "MEEND" }, roomPill { "ROOM" }, midiPill { "MIDI" }, voicesPill { "VOICES" }, outPill { "OUT" };
+    Pill saPill { "SA" }, ragaPill { "SCALE" }, lockPill { "MAP" }, meendPill { "MEEND" }, roomPill { "ROOM" }, midiPill { "MIDI" }, voicesPill { "VOICES" }, outPill { "OUT" };
     std::vector<std::unique_ptr<StarKnob>> knobs;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;
     std::unique_ptr<juce::TextEditor> typer;
     juce::Rectangle<int> knobArea[3];
+    int lastScale = -1, lastN = -1;
 };
 
 class TantriEditor : public juce::AudioProcessorEditor, private juce::Timer
