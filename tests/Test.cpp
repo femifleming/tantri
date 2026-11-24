@@ -196,6 +196,28 @@ static int testLevels()
 }
 
 // tanpura drone: the level must hold (no decay) and sit near the plucked cycle's level
+// the drone's bow rate: at every rate the drone keeps sounding, finite, and a different rate changes the sound
+static int testBow()
+{
+    int rc = 0;
+    std::printf ("drone bow rate:\n");
+    std::vector<float> rms;
+    for (float r : { 0.125f, 0.5f, 1.0f, 1.5f, 2.0f, 8.0f })
+    {
+        auto p = make();
+        set (*p, "n_mode", 1); set (*p, "n_voicing", 0); set (*p, "n_note", 1); set (*p, "s_level", 0); set (*p, "t_level", 0);
+        set (*p, "n_bow", r);
+        auto b = render (*p, {}, 5);
+        double e = 0; bool fin = true; float pk = 0;
+        for (int i = int (2 * kFs); i < b.getNumSamples(); ++i) { const float x = b.getSample (0, i); e += x * x; fin &= std::isfinite (x); pk = std::max (pk, std::abs (x)); }
+        const float db = (float) juce::Decibels::gainToDecibels (std::sqrt (e / (b.getNumSamples() - 2 * kFs)));
+        const bool ok = fin && db > -50 && pk <= 0.8913f + 1e-4f;
+        std::printf ("  %s  x%.3f  rms %.1f dB  peak %.2f\n", ok ? "ok  " : "FAIL", r, db, pk);
+        if (! ok) rc = 1;
+    }
+    return rc;
+}
+
 static int testDrone()
 {
     auto windows = [] (const juce::AudioBuffer<float>& b, double from, std::vector<float>& w)
@@ -270,6 +292,12 @@ static double corr (const juce::AudioBuffer<float>& b, int c1, int c2, int from,
     for (int i = from; i < to; ++i) s += x[i] * y[i];
     return s;
 }
+static void tone440 (juce::AudioBuffer<float>& io, int pos)
+{
+    for (int i = 0; i < io.getNumSamples(); ++i)
+        for (int c = 0; c < std::min (2, io.getNumChannels()); ++c)
+            io.setSample (c, i, 0.3f * std::sin (2.0f * juce::MathConstants<float>::pi * 440.0f * float (pos + i) / float (kFs)));
+}
 static int testSpace()
 {
     int rc = 0;
@@ -280,6 +308,7 @@ static int testSpace()
         auto p = makeAmbi (3);
         for (const char* id : { "tanpura_az" }) set (*p, id, 90);
         set (*p, "tanpura_motion", 0); set (*p, "tanpura_el", 0); set (*p, "n_room", 0); set (*p, "spread", 0); set (*p, "tanpura_dist", 0.6f);
+        set (*p, "reflect", 0);
         auto b = render (*p, {}, 6);
         const double w = energy (b, 0, int (kFs)), y = energy (b, 1, int (kFs)), x = energy (b, 3, int (kFs)), z = energy (b, 2, int (kFs));
         std::printf ("    W %.3g  Y %.3g  Z %.3g  X %.3g\n", w, y, z, x);
@@ -350,6 +379,56 @@ static int testSpace()
         const double w2 = energy (b2, 0, int (kFs)) / kFs;
         std::printf ("    taraf sounded by the input: rms %.4f\n", std::sqrt (w2));
         check (w2 > 1e-7, "the input sets the sympathetic strings ringing");
+    }
+    // 6. reflections: the same source with REFLECT up puts energy in X and Z (the walls, floor, ceiling)
+    {
+        double xz[2];
+        for (int r = 0; r < 2; ++r)
+        {
+            auto p = makeAmbi (3);
+            set (*p, "tanpura_az", 90); set (*p, "tanpura_el", 0); set (*p, "tanpura_motion", 0); set (*p, "n_room", 0);
+            set (*p, "n_mode", 1); set (*p, "spread", 0); set (*p, "reflect", r ? 1.0f : 0.0f);
+            auto b = render (*p, {}, 4);
+            xz[r] = (energy (b, 2, int (kFs)) + energy (b, 3, int (kFs))) / energy (b, 0, int (kFs));
+        }
+        std::printf ("    reflections: (X+Z)/W  off %.4f  on %.4f\n", xz[0], xz[1]);
+        check (xz[1] > 4.0 * xz[0] + 0.01, "reflections arrive from other directions");
+    }
+    // 7. doppler: a source swept toward you sounds higher than one swept away (zero-crossing rate of W)
+    {
+        auto rateOf = [&] (float from, float to)
+        {
+            auto p = makeAmbi (1);
+            set (*p, "s_level", 0); set (*p, "t_level", 0); set (*p, "n_on", 0); set (*p, "reflect", 0);
+            set (*p, "doppler", 1.0f); set (*p, "rolloff", 0.0f); set (*p, "air", 0.0f);
+            if (TantriProcessor::kFx) { set (*p, "i_level", 1.0f); set (*p, "i_symp", 0.0f); }
+            set (*p, "input_motion", 0); set (*p, "sitar_motion", 0);
+            const char* dist = TantriProcessor::kFx ? "input_dist" : "sitar_dist";
+            set (*p, dist, from);
+            render (*p, {}, 0.5, 256, tone440);
+            set (*p, dist, to);
+            auto b = render (*p, {}, 0.25, 256, tone440);
+            int zc = 0; auto* w = b.getReadPointer (0);
+            for (int i = 1; i < b.getNumSamples(); ++i) zc += (w[i - 1] < 0) != (w[i] < 0);
+            if (std::getenv ("DOPPLER_DEBUG")) std::printf ("      d %.2f->%.2f srcD %.3f mag %.4f\n", from, to, p->srcD[3].load(), b.getMagnitude (0, 0, b.getNumSamples()));
+            return zc / 2.0 / 0.25;
+        };
+        if (TantriProcessor::kFx)
+        {
+            const double toward = rateOf (1.0f, 0.0f), away = rateOf (0.0f, 1.0f);
+            std::printf ("    doppler: toward %.1f Hz, away %.1f Hz (still 440)\n", toward, away);
+            check (toward > 444 && away < 436, "doppler: nearer is higher, further is lower");
+        }
+    }
+    // 8. a modulator on the tanpura's direction moves it; on nothing it does not
+    {
+        auto p = makeAmbi (1);
+        set (*p, "tanpura_motion", 0); set (*p, "n_mode", 1);
+        set (*p, "m1_target", 1 + 2 * 4 + 0); set (*p, "m1_depth", 1.0f); set (*p, "m1_rate", 2.0f); set (*p, "m1_shape", 0);
+        float lo = 1, hi = 0;
+        for (int i = 0; i < 20; ++i) { render (*p, {}, 0.05); lo = std::min (lo, p->srcX[2].load()); hi = std::max (hi, p->srcX[2].load()); }
+        std::printf ("    LFO on the tanpura's direction: x %.3f .. %.3f\n", lo, hi);
+        check (hi - lo > 0.3f, "a modulator moves its source");
     }
     // 5. stereo preview (the app): something left/right, not silent
     {
@@ -569,7 +648,18 @@ static void shot (const juce::File& out)
     render (*p, ev, 4.4);
     std::unique_ptr<juce::AudioProcessorEditor> ed (p->createEditor());
     auto& canvas = dynamic_cast<TantriEditor*> (ed.get())->getCanvas();
-    if (std::getenv ("SHOT_SPACE")) canvas.setSpaceView (true);
+    if (std::getenv ("SHOT_SPACE"))
+    {
+        canvas.setSpaceView (true);
+       #if TANTRI_SPATIAL
+        // a lively scene: the tanpura orbiting, the sitar swung by an LFO and wide, the tabla on Lorenz
+        set (*p, "n_mode", 1); set (*p, "tanpura_motion", (float) tantri::field::motion::Orbit); set (*p, "tanpura_rate", 3.0f);
+        set (*p, "tabla_motion", (float) tantri::field::motion::Lorenz); set (*p, "sitar_size", 0.4f); set (*p, "reflect", 0.5f);
+        set (*p, "m1_target", 1.0f); set (*p, "m1_depth", 0.4f); set (*p, "m2_target", 1 + 2 * 4 + 1); set (*p, "m2_depth", 0.6f);
+        set (*p, "m2_shape", 6); set (*p, "m3_target", 1 + TantriProcessor::kSources * 4 + 9); set (*p, "m3_depth", 0.3f);
+        for (int i = 0; i < 60; ++i) { render (*p, { { 0.0, juce::MidiMessage::noteOn (1, 64, 0.7f) } }, 1.0 / 30); canvas.tick(); }
+       #endif
+    }
     if (std::getenv ("SHOT_DRONE")) { set (*p, "n_mode", 1); set (*p, "n_dr3", 0); render (*p, {}, 2.0); }
     for (int i = 0; i < 3; ++i) canvas.tick();
     auto img = canvas.createComponentSnapshot (canvas.getLocalBounds(), true, 2.0f);
@@ -587,10 +677,11 @@ int main (int argc, char** argv)
     if (a.contains ("--pitch")) rc |= testPitch();
     if (a.contains ("--bols")) rc |= testBols();
     if (a.contains ("--drone")) rc |= testDrone();
+    if (a.contains ("--bow")) rc |= testBow();
    #if TANTRI_SPATIAL
     if (a.contains ("--space")) rc |= testSpace();
    #endif
-    if (a.isEmpty()) { rc |= testPitch(); rc |= testDrone(); rc |= testStress();
+    if (a.isEmpty()) { rc |= testPitch(); rc |= testDrone(); rc |= testBow(); rc |= testStress();
                       #if TANTRI_SPATIAL
                        rc |= testSpace();
                       #endif

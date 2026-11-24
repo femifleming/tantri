@@ -66,8 +66,8 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
     <tr><td class="k">6</td><td>How the strings work: waveguides and the jawari bridge</td><td style="text-align:right">8</td></tr>
     <tr><td class="k">7</td><td>How the tabla works: modal synthesis</td><td style="text-align:right">9–10</td></tr>
     <tr><td class="k">8</td><td>The output stage</td><td style="text-align:right">11</td></tr>
-    <tr><td class="k">9</td><td>Tantri Akasha: space, motions, Ambisonics, the FX</td><td style="text-align:right">12–13</td></tr>
-    <tr><td class="k">10</td><td>Parameter reference</td><td style="text-align:right">14</td></tr>
+    <tr><td class="k">9</td><td>Tantri Akasha: the 3D view, motions, effects, modulators, the FX</td><td style="text-align:right">12–14</td></tr>
+    <tr><td class="k">10</td><td>Parameter reference</td><td style="text-align:right">15</td></tr>
   </table>
 
   <h2 style="margin-top:8mm">1 · QUICK START</h2><div class="rule"></div>
@@ -252,6 +252,8 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <h3>How it sustains</h3>
       <p>Each droning string is bowed rather than plucked: once per period of its own pitch it receives a soft bipolar push next to the bridge, the stick-slip that a bow gives a string, plus a trace of noise. Because the push is locked to the string's period it drives every harmonic coherently, and the string keeps its own resonances, losses and jawari. A slow loop measures each string's level and sets the push so the level stays where it is, which is why nothing decays. The jawari thread keeps working, so the harmonics still turn and swirl.</p>
       <p><b>HUMAN</b> lets each string breathe slowly in level (up to about ±3 dB) and varies the push a little. <b>JAWARI</b>, <b>REGISTER</b>, <b>1ST STR</b>, <b>WIDTH</b> and the slow pitch drift work as in the cycle. <b>CYCLE</b> is not used while droning.</p>
+      <h3>The bow: rate and width</h3>
+      <p><b>BOW RATE</b> changes the rate of that pulse oscillator, as a ratio of each string's own pitch (×0.125 to ×8). At ×1 it is locked to the string, the classic sound. Below 1 the string is pushed every second, third or eighth period, so it rings more freely between pushes and grows a soft undertone and a slow pulse; above 1 it drives the upper harmonics; ratios between whole numbers (×1.5, ×2.3) push against the string's own pitch and make it beat and growl. The level loop still holds every rate steady. <b>BOW WIDTH</b> (0.1–4 ms) is the length of each push: short is bright and reedy, long is round and soft (a push never lasts longer than its period). In Tantri Akasha a modulator can move the bow rate.</p>
       <p>Measured over 60 s (<code>TantriTest --drone</code>): the level stays within about ±3 dB of its average (the HUMAN breath) with no downward trend, and sits within a few dB of the plucked cycle.</p>
     </div>
     <div>
@@ -386,12 +388,13 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
 <div class="page tight">
   <h2>9 · TANTRI AKASHA <span>THE INSTRUMENT IN SPACE</span></h2><div class="rule"></div>
   <div class="fig"><img src="img/space.png" style="height:92mm; object-fit:cover; object-position:top"></div>
-  <p class="cap">THE SPACE VIEW (VIEW: SPACE IN THE HEADER). TOP LEFT THE SPHERE UNROLLED, TOP RIGHT THE FIELD AND THE PLAN FROM ABOVE, BELOW THEM EACH SOURCE'S PLACE AND MOTION.</p>
+  <p class="cap">THE SPACE VIEW (VIEW: SPACE IN THE HEADER), MIRROR SYMMETRICAL: THE FIELD AND ITS EFFECTS ON THE LEFT, THE 3D VIEW IN THE MIDDLE, THE FOUR MODULATORS ON THE RIGHT, EACH SOURCE'S PLACE, SIZE AND MOTION ALONG THE BOTTOM.</p>
   <div class="cols">
     <div>
       <p>Tantri Akasha is Tantri with an Ambisonics output. The sitar, the tabla and the tanpura are three <b>sources</b>, each with a place in the sphere round the listener and, if you like, a motion of its own. It uses the same space as <b>openfield</b> and the other spatial instruments: the same encoder, the same distance model and the same twelve motions, including the flock and the Lorenz attractor.</p>
-      <h3>The map</h3>
-      <p>The large tile is the sphere unrolled: left to right goes once round you (front in the middle, behind at both edges), bottom to top from 45° below to overhead. The gold line is the horizon. Each source is a star, larger when it is near. The small octagon is its home and the line shows how far its motion has carried it. <b>Drag</b> a star to place it, <b>scroll</b> over it to change its distance, <b>double-click</b> it to choose a motion. The circle on the right is the same scene seen from above.</p>
+      <h3>The 3D view</h3>
+      <p>The middle tile is the space itself, seen by a camera that circles you. You are the white head in the middle (gold nose to the front, pink ears). The gold ring is the horizon, the grey rings and meridians the sphere of directions down to 45° below, the floor below you carries rings a quarter of the field apart. Each source is a star with its trail, a line down to its shadow on the floor (so you can read its height), a faint ray from your head, and its home (the small octagon) joined to where its motion and the modulators have taken it. A translucent halo shows its <b>SIZE</b>; it glows when it sounds. With REFLECT up the room appears as a gold box and every source shows its six reflections as small ghosts on the other side of the walls, floor and ceiling.</p>
+      <p><b>Drag the empty space</b> to turn the camera round you and up or down, <b>wheel</b> to zoom, <b>double-click</b> to reset. The tabs choose a view: <b>FREE</b> (yours), <b>TOP</b> (from above, front up), <b>FRONT</b> (from behind you, looking ahead), <b>SIDE</b> (from your right) and <b>MAP</b> (the sphere unrolled flat, as before: round you left to right, height bottom to top). <b>ORBIT</b> turns the camera slowly by itself. <b>Drag a source</b> to move it: it follows the mouse across the sphere from any angle. <b>Shift-drag</b> or <b>wheel</b> over it changes its distance; <b>double-click</b> it for its motion.</p>
       <h3>Output</h3>
       <p>ACN channel order, SN3D normalisation (AmbiX), 1st to 7th order. As a VST3 or VST2 it offers up to 64 channels and as an AU 3rd order (16); the <b>ORDER</b> knob sets how many are used. Put a decoder or binaural renderer (IEM, SPARTA) after it. On a stereo track and in the desktop app it plays a stereo preview, the first order folded to left and right.</p>
     </div>
@@ -449,6 +452,40 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
   <div class="foot"><span>TANTRI MANUAL</span><span>13</span></div>
 </div>
 
+<!-- akasha 3 -->
+<div class="page">
+  <h2>9 · TANTRI AKASHA <span>SPATIAL EFFECTS · MODULATORS</span></h2><div class="rule"></div>
+  <div class="cols">
+    <div>
+      <h3>Spatial effects</h3>
+      <p>Besides the distance model, every source passes through five effects that make the space deeper. All are in the FIELD column.</p>
+      <table>
+        <tr><th>KNOB</th><th>WHAT IT DOES</th></tr>
+        <tr><td class="k">DOPPLER</td><td>each source is delayed by the time sound takes to reach you (the field is 0.5–10 m; DOPPLER scales it). The delay glides as the source moves, so a sound coming closer rises in pitch and one going away falls, as a passing train does. At 0 nothing is delayed.</td></tr>
+        <tr><td class="k">REFLECT</td><td>first reflections from a room around you (its size is ROOM in the header): six image sources per source, from the front and back walls, the side walls, the ceiling and the floor, each arriving later, softer and duller, from its own direction. They tell your ears how big the space is and where the source is in it.</td></tr>
+        <tr><td class="k">PROXIMITY</td><td>near-field bass: a source right by your head gains low end (up to about +8 dB below 160 Hz), as a voice does close to a microphone or your ear.</td></tr>
+        <tr><td class="k">HEIGHT</td><td>a height cue like the one your outer ear gives: sounds above you are slightly brighter above 6 kHz, sounds below you duller.</td></tr>
+        <tr><td class="k">SPIN</td><td>turns the whole scene round you continuously (−30 to +30 turns a minute), on top of TURN.</td></tr>
+        <tr><td class="k">SIZE</td><td>per source: how big the source is. A large source is wide and loses its sharpness of direction until it fills the space; a small one is a point.</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Modulators</h3>
+      <p>Four LFOs, in the right-hand column. Each has a <b>shape</b> (click it): sine, triangle, ramp up, ramp down, square, S&amp;H (a new random value every cycle), smooth (random, glided) and Lorenz (the attractor's sway); a <b>RATE</b> from 0.01 Hz (one cycle in 100 s) to 10 Hz; a <b>DEPTH</b> from −100 % to +100 % (negative turns the wave upside down); and a <b>target</b> (click the arrow).</p>
+      <p>Targets: for each source its <b>direction</b> (±180° at full depth), <b>height</b>, <b>distance</b> and <b>size</b>; and for the whole field the scene <b>turn</b> and <b>tilt</b>, <b>air</b>, <b>spread</b>, <b>blur</b>, <b>rolloff</b>, <b>Doppler</b>, <b>reflections</b>, the <b>motion speed</b> (±2 octaves) and the <b>tanpura's bow rate</b> (±2 octaves). Several LFOs on one target add up. They work on the home place, so a source keeps its own motion and the modulation moves the whole motion around.</p>
+      <p>The small scope shows the last two cycles of each LFO: the thin grey line is the shape, the gold line what reaches its target (shape × depth), the star where it is now. The 3D view shows the result.</p>
+      <h3>A few ideas</h3>
+      <ul>
+        <li>A slow sine (0.05 Hz) on the tanpura's direction at 50 %: the drone sways round the front of you; add DOPPLER and it bends as it moves.</li>
+        <li>Smooth random on the sitar's distance and a second one on its height: the sitar wanders near and far while you play.</li>
+        <li>A ramp on the bow rate at low depth: the drone's undertone slowly opens and closes.</li>
+        <li>S&amp;H on the tabla's direction at the tempo's rate: every stroke from a new place.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>14</span></div>
+</div>
+
 <!-- 11 reference -->
 <div class="page ref">
   <h2>10 · PARAMETER REFERENCE</h2><div class="rule"></div>
@@ -492,14 +529,18 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
         <tr><td class="k">Mode</td><td>Cycle · Drone</td></tr>
         <tr><td class="k">Drone voicing · note</td><td>Single · Chord; 1st string · Sa · Sa (2nd) · kharaj sa</td></tr>
         <tr><td class="k">Drone chord strings</td><td>four switches, one per string</td></tr>
+        <tr><td class="k">Bow rate · bow width</td><td>×0.125–×8 of each string's pitch · 0.1–4 ms</td></tr>
       </table>
       <h3>Akasha (spatial builds)</h3>
       <table>
         <tr><td class="k">Per source: direction · height · distance</td><td>−180–180° · −45–90° · 0–100 %</td></tr>
-        <tr><td class="k">Per source: motion · rate</td><td>13 motions · 0.25–4×</td></tr>
+        <tr><td class="k">Per source: motion · rate · size</td><td>13 motions · 0.25–4× · 0–100 %</td></tr>
         <tr><td class="k">Order</td><td>1st–7th (4–64 channels)</td></tr>
         <tr><td class="k">Rolloff · Air · Spread · Blur</td><td>0–100 %</td></tr>
         <tr><td class="k">Near · Speed · Turn · Tilt</td><td>2–50 % · 0.1–4× · ±180° · ±90°</td></tr>
+        <tr><td class="k">Doppler · Reflect · Proximity · Height</td><td>0–100 %</td></tr>
+        <tr><td class="k">Spin</td><td>−30 to +30 turns a minute</td></tr>
+        <tr><td class="k">Mod 1–4: shape · rate · depth · target</td><td>8 shapes · 0.01–10 Hz · ±100 % · 27 targets (31 in the FX)</td></tr>
         <tr><td class="k">FX: Input · Sympathy</td><td>input level · input into the taraf</td></tr>
       </table>
       <h3>Performance</h3>
@@ -508,7 +549,7 @@ td.k { color: var(--white); font-weight: 700; white-space: nowrap; }
       <p style="font-size:8.6pt">C. V. Raman, <i>The Indian musical drums</i>, Proc. Indian Acad. Sci. A1 (1934) · J. O. Smith, <i>Physical Audio Signal Processing</i> (digital waveguides) · J. R. Pierce &amp; S. A. Van Duyne, <i>A passive nonlinear digital filter design…</i>, JASA 101 (1997) · S. Siddiq, <i>A physical model of the nonlinear sitar string</i>, Archives of Acoustics 37 (2012) · V. Välimäki et al., <i>Discrete-time modelling of musical instruments</i>, Rep. Prog. Phys. 69 (2006).</p>
     </div>
   </div>
-  <div class="foot"><span>TANTRI MANUAL</span><span>14</span></div>
+  <div class="foot"><span>TANTRI MANUAL</span><span>15</span></div>
 </div>
 
 <script>

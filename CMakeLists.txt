@@ -3,7 +3,7 @@ if(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Universal binary")
 endif()
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS")
-project(Tantri VERSION 1.1.0 LANGUAGES C CXX)
+project(Tantri VERSION 1.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(TANTRI_COPY_AFTER_BUILD "Install into the user plug-in folders after building" OFF)
@@ -80,7 +80,7 @@ function(tt_add target code name desc spatial fx icon)
             JucePlugin_Name="${name}" JucePlugin_Build_Standalone=1
             JucePlugin_IsSynth=${t_synth} JucePlugin_WantsMidiInput=1 JucePlugin_ProducesMidiOutput=0 JucePlugin_IsMidiEffect=0
             JucePlugin_ManufacturerCode=0x46726b70 JucePlugin_PluginCode=0x546e7472 JucePlugin_VersionString="${PROJECT_VERSION}"
-            JucePlugin_Manufacturer="Tantri" JucePlugin_Desc="${name}" JucePlugin_VersionCode=0x10100)
+            JucePlugin_Manufacturer="Tantri" JucePlugin_Desc="${name}" JucePlugin_VersionCode=0x10200)
         target_link_libraries(${target}Test PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags)
         if(MSVC)
             target_link_options(${target}Test PRIVATE /STACK:8388608)

@@ -8,6 +8,17 @@ using APB = juce::AudioParameterBool;
 using API = juce::AudioParameterInt;
 using NR = juce::NormalisableRange<float>;
 
+juce::StringArray TantriProcessor::modTargetNames()
+{
+    using namespace tantri::field;
+    static const char* nm[4] = { "Sitar", "Tabla", "Tanpura", "Input" };
+    juce::StringArray s { "None" };
+    for (int k = 0; k < kSources; ++k)
+        for (auto* part : kModSrcPart) s.add (juce::String (nm[k]) + " " + part);
+    for (auto* g : kModGlobal) s.add (g);
+    return s;
+}
+
 juce::StringArray TantriProcessor::scaleNames()
 {
     juce::StringArray s;
@@ -92,6 +103,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout TantriProcessor::createLayou
         static const char* nm[4] = { "Drone chord 1st string", "Drone chord Sa", "Drone chord Sa (2nd)", "Drone chord kharaj sa" };
         p.push_back (std::make_unique<APB> (juce::ParameterID { "n_dr" + juce::String (i + 1), 1 }, nm[i], true));
     }
+    { NR r (0.125f, 8.0f); r.setSkewForCentre (1.0f);
+      F ("n_bow", "Drone bow rate", r, 1.0f, [] (float v) { return "x" + juce::String (v, v < 1 ? 3 : 2); }); }
+    { NR r (0.1f, 4.0f); r.setSkewForCentre (0.7f);
+      F ("n_bowpw", "Drone bow width", r, 0.7f, [] (float v) { return juce::String (v, 2) + " ms"; }); }
 
    #if TANTRI_SPATIAL
     // ---- the space (Tantri Akasha): one place and motion per source, openfield's distance model
@@ -112,6 +127,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout TantriProcessor::createLayou
             NR r (0.25f, 4.0f); r.setSkewForCentre (1.0f);
             p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_rate", 1 }, nm + " motion rate", r, 1.0f,
                                                 fmt ([] (float v) { return juce::String (v, 2) + "x"; })));
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_size", 1 }, nm + " size", unit, 0.0f, fmt (pct)));
+        }
+        // the spatial effects
+        F ("doppler", "Doppler", unit, 0.0f, pct);
+        F ("reflect", "Reflections", unit, 0.2f, pct);
+        F ("prox", "Near bass", unit, 0.3f, pct);
+        F ("hcue", "Height cue", unit, 0.3f, pct);
+        F ("spin", "Scene spin", NR (-30, 30), 0.0f, [] (float v) { return juce::String (v, 1) + " rpm"; });
+        // the modulators
+        for (int m = 1; m <= kMods; ++m)
+        {
+            juce::String id = "m" + juce::String (m), nm = "Mod " + juce::String (m);
+            juce::StringArray shapes; for (auto* sh : kLfoShape) shapes.add (sh);
+            p.push_back (std::make_unique<APC> (juce::ParameterID { id + "_shape", 1 }, nm + " shape", shapes, (m - 1) % 3));
+            NR r (0.01f, 10.0f); r.setSkewForCentre (0.3f);
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_rate", 1 }, nm + " rate", r, 0.1f * m,
+                                                fmt ([] (float v) { return v < 1 ? juce::String (v, 3) + " Hz" : juce::String (v, 2) + " Hz"; })));
+            p.push_back (std::make_unique<APF> (juce::ParameterID { id + "_depth", 1 }, nm + " depth", NR (-1, 1), 0.0f, fmt (pct)));
+            p.push_back (std::make_unique<APC> (juce::ParameterID { id + "_target", 1 }, nm + " target", modTargetNames(), 0));
         }
         p.push_back (std::make_unique<APC> (juce::ParameterID { "order", 1 }, "Ambisonic order",
                                             juce::StringArray { "1st", "2nd", "3rd", "4th", "5th", "6th", "7th" }, 2));
@@ -222,6 +256,9 @@ void TantriProcessor::prepareToPlay (double sampleRate, int)
     limitN.prepare (sr, ambi::kCh);
     for (auto& e : enc) e.reset();
     for (auto& e : encRev) e.reset();
+    for (auto& r : encRef) for (auto& e : r) e.reset();
+    for (int k = 0; k < 4; ++k) { dly[k].prepare (sr); dlyNow[k] = 2.0; for (auto& d : refDelay[k]) d = 0; }
+    dlL.assign (kChunk, 0.0f); dlR.assign (kChunk, 0.0f); refBuf.assign (kChunk, 0.0f);
     srcBuf.setSize (10, kChunk);
     inBuf.setSize (2, 4096);
     fold.setSize (4, 4096);
@@ -273,6 +310,7 @@ void TantriProcessor::readParams()
     np.on = v ("n_on") > 0.5f; np.cycleBpm = v ("n_cycle"); np.jawari = v ("n_jawari"); np.first = (int) v ("n_first");
     np.human = v ("n_human"); np.octave = (int) v ("n_octave") - 1; np.width = v ("n_width"); np.level = v ("n_level");
     np.mode = (int) v ("n_mode"); np.voicing = (int) v ("n_voicing"); np.note = (int) v ("n_note");
+    np.bowRate = v ("n_bow"); np.bowWidthMs = v ("n_bowpw");
     np.chordMask = (v ("n_dr1") > 0.5f ? 1 : 0) | (v ("n_dr2") > 0.5f ? 2 : 0) | (v ("n_dr3") > 0.5f ? 4 : 0) | (v ("n_dr4") > 0.5f ? 8 : 0);
     tanpura.setParams (np, scale, scaleVersion, sa);
     tanpuraFirst.store (tanpura.firstStringChoice());
@@ -438,14 +476,29 @@ void TantriProcessor::processSpatial (juce::AudioBuffer<float>& buffer, juce::Mi
     master.setTargetValue (v ("master"));
 
     // the places (home + motion); motion clocks restart when a source's motion changes
-    Place pl[4];
+    Place home[4];
+    float sizeHome[4] {};
     static constexpr float seeds[4] = { 0.21f, 0.68f, 0.43f, 0.91f };
     for (int k = 0; k < kSources; ++k)
     {
-        pl[k].x = xForAzDeg (vs (k, "_az")); pl[k].y = yForElDeg (vs (k, "_el")); pl[k].d = vs (k, "_dist");
-        pl[k].motion = (int) vs (k, "_motion"); pl[k].mrate = vs (k, "_rate"); pl[k].mseed = seeds[k];
-        if (pl[k].motion != lastMotion[k]) { lastMotion[k] = pl[k].motion; tau[k] = 0.0; }
+        home[k].x = xForAzDeg (vs (k, "_az")); home[k].y = yForElDeg (vs (k, "_el")); home[k].d = vs (k, "_dist");
+        home[k].motion = (int) vs (k, "_motion"); home[k].mrate = vs (k, "_rate"); home[k].mseed = seeds[k];
+        sizeHome[k] = vs (k, "_size");
+        if (home[k].motion != lastMotion[k]) { lastMotion[k] = home[k].motion; tau[k] = 0.0; }
     }
+    const float dopplerP = v ("doppler"), reflectP = v ("reflect"), spinP = v ("spin"), roomP = v ("roomSize");
+    struct Mod { int shape, target; float rate, depth; };
+    Mod mods[kMods];
+    for (int mi = 0; mi < kMods; ++mi)
+    {
+        const juce::String id = "m" + juce::String (mi + 1);
+        mods[mi] = { (int) apvts.getRawParameterValue (id + "_shape")->load(), (int) apvts.getRawParameterValue (id + "_target")->load(),
+                     apvts.getRawParameterValue (id + "_rate")->load(), apvts.getRawParameterValue (id + "_depth")->load() };
+    }
+    const int nTargets = modTargetCount (kSources), gBase = 1 + kSources * mt::PerSource;
+    const int rOrder = std::min (order, 3), rNch = ambi::chFor (rOrder);
+    const float kRefLp = 1.0f - std::exp (-2.0f * tantri::field::kPi * std::fmin (5000.0f, (float) sr * 0.4f) / (float) sr);
+    const double kDlySmooth = 1.0 - std::exp (-1.0 / (0.08 * sr));   // the delay glides: that glide is the Doppler shift
 
     float blockPeak = 0;
     float act[4] {};
@@ -453,6 +506,43 @@ void TantriProcessor::processSpatial (juce::AudioBuffer<float>& buffer, juce::Mi
     for (int pos = 0; pos < n; pos += kChunk)
     {
         const int m = std::min (kChunk, n - pos);
+        const float dt = (float) m / (float) sr;
+
+        // the modulators: advance, sum into their targets
+        float off[64] {};
+        for (int mi = 0; mi < kMods; ++mi)
+        {
+            lfoPh[mi] += mods[mi].rate * dt;
+            if (lfoPh[mi] > 1.0e6) lfoPh[mi] -= 1.0e6;
+            const float val = lfoValue (mods[mi].shape, lfoPh[mi], 0.37f + 0.17f * (float) mi);
+            modPhase[mi].store (lfoPh[mi]); modOut[mi].store (val);
+            if (mods[mi].target > 0 && mods[mi].target < nTargets) off[mods[mi].target] += val * mods[mi].depth;
+        }
+        auto G = [&] (int g) { return off[gBase + g]; };
+        SpaceParams s2 = sp;
+        spinAngle += (double) spinP / 60.0 * 2.0 * tantri::field::kPi * dt;
+        spinAngle = std::remainder (spinAngle, 2.0 * (double) tantri::field::kPi);
+        s2.yaw = sp.yaw + (float) spinAngle + G (mt::Turn) * tantri::field::kPi;
+        s2.pitch = juce::jlimit (-tantri::field::kPi * 0.5f, tantri::field::kPi * 0.5f, sp.pitch + G (mt::Tilt) * tantri::field::kPi * 0.5f);
+        s2.air = clamp01 (sp.air + G (mt::Air)); s2.spread = clamp01 (sp.spread + G (mt::Spread));
+        s2.blur = clamp01 (sp.blur + G (mt::Blur)); s2.rolloff = clamp01 (sp.rolloff + G (mt::Rolloff));
+        s2.mspeed = sp.mspeed * std::pow (2.0f, 2.0f * G (mt::Speed));
+        const float doppler = clamp01 (dopplerP + G (mt::Doppler)), reflect = clamp01 (reflectP + G (mt::Reflect));
+        tanpura.bowMod = std::pow (2.0f, 2.0f * G (mt::Bow));
+        rotYaw.store (s2.yaw); rotPitch.store (s2.pitch);
+        fieldNow[0].store (reflect); fieldNow[1].store (doppler); fieldNow[2].store (roomP);
+
+        Place pl[4]; float size[4] {};
+        for (int k = 0; k < kSources; ++k)
+        {
+            const float* o = off + 1 + k * mt::PerSource;
+            pl[k] = home[k];
+            pl[k].x -= 0.5f * o[mt::Dir]; pl[k].x -= std::floor (pl[k].x);
+            pl[k].y = clamp01 (pl[k].y + 0.5f * o[mt::Height]);
+            pl[k].d = clamp01 (pl[k].d + 0.5f * o[mt::Dist]);
+            size[k] = clamp01 (sizeHome[k] + o[mt::Size]);
+        }
+
         float* sL[5]; float* sR[5];
         for (int k = 0; k < 5; ++k) { sL[k] = srcBuf.getWritePointer (2 * k); sR[k] = srcBuf.getWritePointer (2 * k + 1); }
         const float* inL = inBuf.getReadPointer (0) + pos;
@@ -474,16 +564,16 @@ void TantriProcessor::processSpatial (juce::AudioBuffer<float>& buffer, juce::Mi
             for (int i = 0; i < m; ++i) act[k] = std::max (act[k], std::max (std::fabs (sL[k][i]), std::fabs (sR[k][i])));
 
         // move: clocks, the flock, then encode each source
-        const float dt = (float) m / (float) sr;
         flock.begin();
         for (int k = 0; k < kSources; ++k)
         {
-            tau[k] += dt * sp.mspeed;
-            if (pl[k].motion == motion::Boids) flock.add (k, pl[k].x, pl[k].y, pl[k].d, pl[k].mrate * sp.mspeed);
+            tau[k] += dt * s2.mspeed;
+            if (pl[k].motion == motion::Boids) flock.add (k, pl[k].x, pl[k].y, pl[k].d, pl[k].mrate * s2.mspeed);
         }
         flock.step (dt);
         float* out[ambi::kCh];
         for (int c = 0; c < nch; ++c) out[c] = dst[c] + pos;
+        const Room rm = roomFor (roomP);
         for (int k = 0; k < kSources; ++k)
         {
             float x, y, d;
@@ -493,18 +583,47 @@ void TantriProcessor::processSpatial (juce::AudioBuffer<float>& buffer, juce::Mi
                 else { x = pl[k].x; y = pl[k].y; d = pl[k].d; }
             }
             else moved (pl[k], tau[k], x, y, d);
-            srcX[k].store (x); srcY[k].store (y); srcD[k].store (d);
+            srcX[k].store (x); srcY[k].store (y); srcD[k].store (d); srcSize[k].store (size[k]);
             float az = azimuth (x), el = elevation (y);
-            rotate (az, el, sp);
-            enc[k].process (sL[k], sR[k], out, nch, order, m, az, el, d, distanceGain (d, sp) * g * 1.7f, sp, sr, 1.0f, scrL.data(), scrR.data());
+            rotate (az, el, s2);
+
+            // the sound travels: a delay of its distance (scaled by DOPPLER) that glides as it moves
+            auto& dl = dly[k];
+            const double target = 2.0 + (double) doppler * metres (d) / kSound * sr;
+            for (int i = 0; i < m; ++i)
+            {
+                dl.write (sL[k][i], sR[k][i]);
+                dlyNow[k] += (target - dlyNow[k]) * kDlySmooth;
+                dl.read (dlyNow[k], dlL[(size_t) i], dlR[(size_t) i]);
+            }
+            enc[k].process (dlL.data(), dlR.data(), out, nch, order, m, az, el, d, distanceGain (d, s2) * g * 1.7f, s2, sr, 1.0f,
+                            scrL.data(), scrR.data(), size[k]);
+
+            // its first reflections: six image sources, later and softer, at up to 3rd order
+            if (reflect > 0.001f || refDelay[k][0] > 0.0f)
+            {
+                Image im[6];
+                images (az, el, d, rm, im);
+                const float dg = distanceGain (d, s2);
+                for (int r = 0; r < 6; ++r)
+                {
+                    const float newDelay = (float) (dlyNow[k] + im[r].extra * sr);
+                    const float d0 = refDelay[k][r] > 0.0f ? refDelay[k][r] : newDelay;
+                    for (int i = 0; i < m; ++i)
+                        refBuf[(size_t) i] = dl.readMono ((double) (d0 + (newDelay - d0) * (float) (i + 1) / (float) m) + (double) (m - 1 - i));
+                    refDelay[k][r] = reflect > 0.001f ? newDelay : 0.0f;
+                    encRef[k][r].process (refBuf.data(), out, rNch, rOrder, m, im[r].az, im[r].el,
+                                          reflect * im[r].gain * (0.35f + 0.65f * dg) * g * 1.4f, 0.6f, kRefLp);
+                }
+            }
         }
         // the room: wide, high, diffuse (its higher orders mostly gone)
         for (int s = 0; s < 2; ++s)
         {
             float az = (s == 0 ? 70.0f : -70.0f) * tantri::field::kPi / 180.0f, el = 20.0f * tantri::field::kPi / 180.0f;
-            rotate (az, el, sp);
+            rotate (az, el, s2);
             encRev[s].process (s == 0 ? sL[4] : sR[4], s == 0 ? sL[4] : sR[4], out, nch, order, m, az, el, 0.5f,
-                               0.7f * g * 1.2f, sp, sr, 0.35f, scrL.data(), scrR.data());
+                               0.7f * g * 1.2f, s2, sr, 0.35f, scrL.data(), scrR.data());
         }
     }
     while (it != midi.end()) { handleMidi ((*it).getMessage()); ++it; }

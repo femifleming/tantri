@@ -14,7 +14,7 @@ Download the latest build for your system from [Releases](../../releases).
 
 ![Tantri](docs/manual/img/ui.png)
 
-The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.pdf), 14 pages, including how the waveguide strings and the modal tabla work.
+The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.pdf), 15 pages, including how the waveguide strings and the modal tabla work.
 
 ## What's inside
 
@@ -22,7 +22,7 @@ The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.
 |---|---|---|
 | **Sitar** | 2× oversampled digital waveguide, two polarisations, 12 voices | Passive nonlinear **jawari** bridge (Pierce–Van Duyne lattice allpasses driven by the string's own displacement); 13 **taraf** sympathetic strings tuned to the raga; 2 **chikari**; 14-mode gourd body; da/ra mizrab strokes |
 | **Tabla** | Modal synthesis: complex one-pole resonators | Dayan modes pulled onto Raman's harmonic series by the **syahi** (continuous from a plain membrane to fully loaded); Bessel mode shapes set each stroke's excitation; damping fingers persist between strokes; degenerate mode pairs beat; tension modulation; bayan wrist pressure and Ghe glide |
-| **Tanpura** | Four jawari strings, two polarisations each | Classic Pa–Sa–Sa–sa cycle with a pause; **Auto** first string (Pa, else Ma, else Ni, from the raga); thread jawari swirl; slow drift; humanised plucking. **Drone mode**: the strings are bowed (a pulse locked to each string's period, level held by a control loop) and sound on without decay, as a **single note** or a **chord** of any of the four strings, no MIDI needed |
+| **Tanpura** | Four jawari strings, two polarisations each | Classic Pa–Sa–Sa–sa cycle with a pause; **Auto** first string (Pa, else Ma, else Ni, from the raga); thread jawari swirl; slow drift; humanised plucking. **Drone mode** (with **bow rate** ×0.125–×8 and **bow width**): the strings are bowed (a pulse locked to each string's period, level held by a control loop) and sound on without decay, as a **single note** or a **chord** of any of the four strings, no MIDI needed |
 
 **Tuning.** Sa is set in Hz, and every pitch is Sa × a ratio from the chosen **scale**. There are 145: 42 Hindustani ragas (each with its own shrutis and andolan swaras), the 10 thaats, all **72 Carnatic melakartas**, and microtonal systems (all 22 shrutis, Partch 43, harmonic and subharmonic series, Pythagorean, 17/19/22/24/31/41/53/72-EDO), plus maqamat and gamelan. Incoming MIDI is **quantised** to the scale (nearest pitch), or with **Steps** each key is the next degree, which reaches every pitch of dense scales. Swara scales can be edited live on the shruti star.
 
@@ -36,7 +36,7 @@ The full guide is [`docs/manual/Tantri Manual.pdf`](docs/manual/Tantri%20Manual.
 
 ![Tantri Akasha](docs/manual/img/space.png)
 
-The same space as openfield and the other spatial instruments: an ACN/SN3D (AmbiX) encoder up to 7th order, openfield's distance model (rolloff, air, near spread, blur, near radius), scene turn and tilt, and twelve motions per source: orbit, swing, rise, drift, spiral, figure 8, arc, approach, hop, flutter, **boids** (one flock of every source on it) and **Lorenz** (each source its own stretch of the attractor). Drag the sources on the unrolled sphere, scroll for distance, double-click for a motion. VST3/VST2 offer up to 64 channels, AU 3rd order; stereo tracks and the app get a first-order stereo preview. A look-ahead limiter on all channels with one shared gain keeps every channel under −1 dBFS.
+The same space as openfield and the other spatial instruments: an ACN/SN3D (AmbiX) encoder up to 7th order, openfield's distance model (rolloff, air, near spread, blur, near radius), scene turn and tilt, and twelve motions per source: orbit, swing, rise, drift, spiral, figure 8, arc, approach, hop, flutter, **boids** (one flock of every source on it) and **Lorenz** (each source its own stretch of the attractor). The space page is a **3D view** you can turn round with the mouse (free, top, front, side and the unrolled map; auto-orbit), with trails, floor shadows, the room and each source's reflections drawn in it; drag a source to move it from any angle. **Spatial effects**: Doppler (each source delayed by its distance, gliding as it moves), first reflections (six image sources per source from a room sized by ROOM), near-field bass, a height cue, scene spin, and a size per source. **Four modulators** (sine, triangle, ramps, square, S&H, smooth random, Lorenz; 0.01–10 Hz) can move any source's direction, height, distance or size, or the field's turn, tilt, air, spread, blur, rolloff, Doppler, reflections, motion speed or the tanpura's bow rate. VST3/VST2 offer up to 64 channels, AU 3rd order; stereo tracks and the app get a first-order stereo preview. A look-ahead limiter on all channels with one shared gain keeps every channel under −1 dBFS.
 
 ## Build
 

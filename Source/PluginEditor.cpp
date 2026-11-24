@@ -334,7 +334,7 @@ void TanpuraTile::mouseDown (const juce::MouseEvent& e)
     }
 }
 
-// ---------------------------------------------------------------- Space panel (Tantri Akasha)
+// ---------------------------------------------------------------- Space (Tantri Akasha)
 namespace
 {
     const char* const kSrcName[4] = { "SITAR", "TABLA", "TANPURA", "INPUT" };
@@ -342,224 +342,693 @@ namespace
     {
         switch (k) { case 0: return col::orange; case 1: return col::red2; case 2: return col::gold2; default: return col::pink; }
     }
-    // the four directions, left to right on the unrolled sphere
     juce::String upper (const char* s) { return juce::String (s).toUpperCase(); }
+    constexpr float kFloorZ = -0.74f;
+    constexpr float kViewPerMetre = 1.0f / 10.5f;
+    float srcParam (TantriProcessor& p, int k, const char* suffix)
+    {
+        return p.apvts.getRawParameterValue (juce::String (TantriProcessor::kSrcId[k]) + suffix)->load();
+    }
+    // a short name for a modulation target
+    juce::String targetShort (int t)
+    {
+        auto names = TantriProcessor::modTargetNames();
+        juce::String s = names[juce::jlimit (0, names.size() - 1, t)];
+        s = s.replace ("direction", "dir").replace ("distance", "dist").replace ("Tanpura bow rate", "bow rate")
+             .replace ("Scene ", "").replace ("Motion speed", "speed").replace ("Near spread", "spread")
+             .replace ("Far blur", "blur").replace ("Reflections", "reflect").replace ("Tanpura", "tanp");
+        return s.toUpperCase();
+    }
 }
 
-SpacePanel::SpacePanel (TantriProcessor& p) : proc (p)
+Space3D::Space3D (TantriProcessor& p) : proc (p) {}
+
+float Space3D::pv (int k, const char* suffix) const { return srcParam (proc, k, suffix); }
+
+juce::Rectangle<float> Space3D::tabRect (int i) const
+{
+    const float w = 62, total = w * (NumModes + 1);
+    return { (getWidth() - total) * 0.5f + i * w, 3, w, 24 };
+}
+
+void Space3D::setMode (int m)
+{
+    mode = m;
+    switch (m)
+    {
+        case Free:  tYaw = freeYaw; tPitch = freePitch; break;
+        case Top:   tYaw = juce::MathConstants<float>::pi; tPitch = 1.5f; break;    // from above, front up
+        case Front: tYaw = juce::MathConstants<float>::pi; tPitch = 0.12f; break;   // from behind you, looking ahead
+        case Side:  tYaw = -kHalfPi; tPitch = 0.12f; break;                         // from your right
+        default: break;
+    }
+    repaint();
+}
+
+Space3D::V3 Space3D::worldOf (float x, float y, float d) const
 {
     using namespace tantri::field;
-    struct K { juce::String id; const char* label; };
-    std::vector<K> field { { "order", "ORDER" }, { "rolloff", "ROLLOFF" }, { "air", "AIR" }, { "spread", "SPREAD" },
-                           { "blur", "BLUR" }, { "near", "NEAR" }, { "mspeed", "SPEED" }, { "yaw", "TURN" }, { "pitch", "TILT" } };
-    if (TantriProcessor::kFx) { field.push_back ({ "i_level", "INPUT" }); field.push_back ({ "i_symp", "SYMPATHY" }); }
-    auto addKnob = [this] (const juce::String& id, const char* label, int x, int y)
-    {
-        auto* prm = proc.apvts.getParameter (id);
-        if (prm == nullptr) return;
-        auto knob = std::make_unique<StarKnob> (prm, label);
-        knob->setBounds (x, y, 61, 82);
-        addAndMakeVisible (*knob);
-        attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, id, *knob));
-        knobs.push_back (std::move (knob));
-    };
-    for (size_t i = 0; i < field.size(); ++i)
-        addKnob (field[i].id, field[i].label, kMapW + 24 + (int) (i % 6) * 61, 34 + (int) (i / 6) * 86);
+    float az = azimuth (x), el = elevation (y);
+    SpaceParams sp; sp.yaw = proc.rotYaw.load(); sp.pitch = proc.rotPitch.load();
+    rotate (az, el, sp);
+    const float r = 0.1f + 0.9f * d;
+    return { r * std::cos (el) * std::cos (az), r * std::cos (el) * std::sin (az), r * std::sin (el) };
+}
 
+Space3D::Proj Space3D::project (V3 p) const
+{
+    const auto area = viewArea();
+    const float cp = std::cos (camPitch), sp = std::sin (camPitch), cy = std::cos (camYaw), sy = std::sin (camYaw);
+    const V3 C { camDist * cp * cy, camDist * cp * sy, camDist * sp };
+    const V3 f { -cp * cy, -cp * sy, -sp };
+    const V3 r { -sy, cy, 0 };
+    const V3 u { -sp * cy, -sp * sy, cp };
+    const V3 q { p.x - C.x, p.y - C.y, p.z - C.z };
+    const float zs = q.x * f.x + q.y * f.y + q.z * f.z;
+    Proj o;
+    if (zs < 0.15f) return o;
+    const float xs = q.x * r.x + q.y * r.y, ys = q.x * u.x + q.y * u.y + q.z * u.z;
+    const float focal = area.getHeight() * 1.3f;
+    o.p = { area.getCentreX() + xs / zs * focal, area.getCentreY() + 14.0f - ys / zs * focal };
+    o.depth = zs; o.scale = focal / zs; o.ok = true;
+    return o;
+}
+
+void Space3D::line3D (juce::Graphics& g, V3 a, V3 b, juce::Colour c, float w, bool depthFade) const
+{
+    auto pa = project (a), pb = project (b);
+    if (! pa.ok || ! pb.ok) return;
+    float alpha = 1.0f;
+    if (depthFade) alpha = juce::jlimit (0.22f, 1.0f, 0.95f - (0.5f * (pa.depth + pb.depth) - camDist) * 0.75f);
+    g.setColour (c.withMultipliedAlpha (alpha));
+    g.drawLine ({ pa.p, pb.p }, w);
+}
+
+juce::Point<float> Space3D::mapPoint (float x, float y) const
+{
+    auto a = viewArea();
+    return { a.getX() + x * a.getWidth(), a.getY() + (1.0f - y) * a.getHeight() };
+}
+
+void Space3D::paint (juce::Graphics& g)
+{
+    g.setColour (col::tile); g.fillRect (getLocalBounds());
+    g.setColour (col::edge); g.drawRect (getLocalBounds(), 1);
+    auto area = viewArea();
+    {
+        juce::Graphics::ScopedSaveState s (g);
+        g.reduceClipRegion (area.toNearestInt());
+        if (mode == Map) paintMap (g, area); else paint3D (g, area);
+    }
+    // the camera tabs, centred; status either side (mirrored)
+    static const char* tabs[NumModes + 1] = { "FREE", "TOP", "FRONT", "SIDE", "MAP", "ORBIT" };
+    for (int i = 0; i <= NumModes; ++i)
+    {
+        const bool on = i == NumModes ? orbit : i == mode;
+        auto r = tabRect (i);
+        g.setColour (on ? col::gold2 : col::grey); g.setFont (font (11));
+        g.drawText (tabs[i], r, juce::Justification::centred);
+        if (on) { g.setColour (col::gold); g.fillRect (r.getCentreX() - 12, r.getBottom() - 3, 24.0f, 2.0f); }
+    }
+    g.setColour (col::edge); g.drawHorizontalLine (29, 1.0f, getWidth() - 1.0f);
+    const int on = proc.orderNow.load();
+    static const char* ord[8] = { "", "1ST", "2ND", "3RD", "4TH", "5TH", "6TH", "7TH" };
+    juce::String sub = on == 0 ? juce::String ("STEREO PREVIEW")
+                     : juce::String (ord[juce::jlimit (1, 7, on)]) + juce::String (juce::CharPointer_UTF8 (" ORDER \xc2\xb7 ")) + juce::String ((on + 1) * (on + 1)) + " CH";
+    g.setColour (col::dim); g.setFont (font (10));
+    g.drawText (sub, 10, 3, 140, 24, juce::Justification::centredLeft);
+    juce::String right;
+    if (hoverSrc >= 0)
+    {
+        const int k = hoverSrc;
+        right = upper (kSrcName[k]) + "  " + juce::String (juce::roundToInt (tantri::field::azDegForX (proc.srcX[k].load()))) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0 / "))
+              + juce::String (juce::roundToInt (tantri::field::elDegForY (proc.srcY[k].load()))) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0  ")) + juce::String (tantri::field::metres (proc.srcD[k].load()), 1) + " M";
+    }
+    else right = mode == Map ? juce::String ("THE SPHERE UNROLLED") : "ZOOM " + juce::String (3.3f / camDist, 2) + "X";
+    g.drawText (right, getWidth() - 190, 3, 180, 24, juce::Justification::centredRight);
+}
+
+void Space3D::paint3D (juce::Graphics& g, juce::Rectangle<float> area)
+{
+    using namespace tantri::field;
     const int ns = TantriProcessor::kSources;
-    const int colW = 1144 / ns;
+    // the floor: rings a quarter of the field apart, spokes every 30 degrees
+    for (int ring = 1; ring <= 4; ++ring)
+    {
+        const float rr = ring * 0.25f;
+        V3 prev { rr, 0, kFloorZ };
+        for (int i = 1; i <= 72; ++i)
+        {
+            const float a = i / 72.0f * kTwoPi;
+            V3 q { rr * std::cos (a), rr * std::sin (a), kFloorZ };
+            line3D (g, prev, q, ring == 4 ? col::edge.brighter (0.6f) : col::edge.brighter (0.25f), ring == 4 ? 1.4f : 1.0f);
+            prev = q;
+        }
+    }
+    for (int i = 0; i < 12; ++i)
+    {
+        const float a = i / 12.0f * kTwoPi;
+        line3D (g, { 0.08f * std::cos (a), 0.08f * std::sin (a), kFloorZ }, { std::cos (a), std::sin (a), kFloorZ }, col::edge.brighter (0.2f), 0.8f);
+    }
+    // the sphere of directions (your frame): height rings, meridians every 45 degrees, gold horizon
+    for (int e : { -45, -30, 0, 30, 60 })
+    {
+        const float el = e * juce::MathConstants<float>::pi / 180.0f, z = std::sin (el), rr = std::cos (el);
+        V3 prev { rr, 0, z };
+        for (int i = 1; i <= 96; ++i)
+        {
+            const float a = i / 96.0f * kTwoPi;
+            V3 q { rr * std::cos (a), rr * std::sin (a), z };
+            line3D (g, prev, q, e == 0 ? col::gold : col::grey.withAlpha (e == -45 ? 0.18f : 0.3f), e == 0 ? 2.0f : 1.0f);
+            prev = q;
+        }
+    }
+    for (int i = 0; i < 8; ++i)
+    {
+        const float a = i / 8.0f * kTwoPi;
+        V3 prev { std::cos (a) * std::cos (-0.785f), std::sin (a) * std::cos (-0.785f), std::sin (-0.785f) };
+        for (int j = 1; j <= 30; ++j)
+        {
+            const float el = -0.785f + j / 30.0f * (kHalfPi + 0.785f);
+            V3 q { std::cos (a) * std::cos (el), std::sin (a) * std::cos (el), std::sin (el) };
+            line3D (g, prev, q, col::grey.withAlpha (i % 2 ? 0.14f : 0.24f), 1.0f);
+            prev = q;
+        }
+    }
+    // the directions, on the horizon
+    struct L { const char* t; float a; };
+    for (auto l : { L { "FRONT", 0 }, L { "LEFT", kHalfPi }, L { "BEHIND", juce::MathConstants<float>::pi }, L { "RIGHT", -kHalfPi } })
+    {
+        auto pr = project ({ 1.16f * std::cos (l.a), 1.16f * std::sin (l.a), 0 });
+        if (! pr.ok) continue;
+        fill (g, star (pr.p.translated (0, 0), 4, 6, 2.5f), col::gold2);
+        g.setColour (col::grey.withMultipliedAlpha (juce::jlimit (0.35f, 1.0f, 1.2f - (pr.depth - camDist) * 0.8f)));
+        g.setFont (font (10));
+        g.drawText (l.t, juce::Rectangle<float> (70, 12).withCentre (pr.p.translated (0, -12)), juce::Justification::centred);
+    }
+    if (auto top = project ({ 0, 0, 1.08f }); top.ok)
+    {
+        g.setColour (col::dim); g.setFont (font (9));
+        g.drawText ("ABOVE", juce::Rectangle<float> (60, 12).withCentre (top.p.translated (0, -8)), juce::Justification::centred);
+    }
+
+    // the room the reflections come from (and each source's six images in it)
+    const float reflect = proc.fieldNow[0].load();
+    if (reflect > 0.001f)
+    {
+        const auto rm = roomFor (proc.fieldNow[2].load());
+        const float X = rm.len * kViewPerMetre, Y = rm.wid * kViewPerMetre, Z0 = -rm.floor * kViewPerMetre, Z1 = rm.ceil * kViewPerMetre;
+        const juce::Colour rc = col::gold.withAlpha (0.18f + 0.4f * reflect);
+        V3 c[8];
+        for (int i = 0; i < 8; ++i) c[i] = { (i & 1) ? X : -X, (i & 2) ? Y : -Y, (i & 4) ? Z1 : Z0 };
+        const int edges[12][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 0, 2 }, { 1, 3 }, { 4, 6 }, { 5, 7 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+        for (auto& e : edges) line3D (g, c[e[0]], c[e[1]], rc, 1.0f);
+        for (int k = 0; k < ns; ++k)
+        {
+            float az = azimuth (proc.srcX[k].load()), el = elevation (proc.srcY[k].load());
+            SpaceParams sp; sp.yaw = proc.rotYaw.load(); sp.pitch = proc.rotPitch.load();
+            rotate (az, el, sp);
+            Image im[6];
+            images (az, el, proc.srcD[k].load(), rm, im);
+            for (auto& m : im)
+            {
+                auto pr = project ({ m.x * kViewPerMetre, m.y * kViewPerMetre, m.z * kViewPerMetre });
+                if (! pr.ok) continue;
+                const float a = juce::jlimit (0.0f, 0.8f, reflect * m.gain * 2.2f) * (0.4f + 0.6f * juce::jlimit (0.0f, 1.0f, act[k] * 4.0f));
+                fill (g, ngon (pr.p, 6, std::max (2.5f, 0.025f * pr.scale)), srcColour (k).withAlpha (a));
+            }
+        }
+    }
+
+    // you: a head with a nose to the front and two ears
+    {
+        auto h = project ({ 0, 0, 0 });
+        if (h.ok)
+        {
+            const float r = std::max (6.0f, 0.065f * h.scale);
+            if (auto sh = project ({ 0, 0, kFloorZ }); sh.ok)
+            {
+                g.setColour (juce::Colours::black.withAlpha (0.35f));
+                g.fillEllipse (juce::Rectangle<float> (r * 2.2f, r * 0.9f).withCentre (sh.p));
+                g.setColour (col::edge.brighter (0.5f)); g.drawLine ({ h.p, sh.p }, 1.0f);
+            }
+            auto nose = project ({ 0.12f, 0, 0 }), el = project ({ 0, 0.075f, 0 }), er = project ({ 0, -0.075f, 0 });
+            if (nose.ok) fill (g, poly ({ nose.p, project ({ 0.03f, 0.035f, 0 }).p, project ({ 0.03f, -0.035f, 0 }).p }), col::gold2);
+            for (auto* e : { &el, &er }) if (e->ok && e->depth > h.depth) { g.setColour (col::pink); g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (e->p)); }
+            g.setColour (col::white); g.fillEllipse (juce::Rectangle<float> (r * 2, r * 2).withCentre (h.p));
+            g.setColour (col::gold); g.drawEllipse (juce::Rectangle<float> (r * 2, r * 2).withCentre (h.p), 1.5f);
+            for (auto* e : { &el, &er }) if (e->ok && e->depth <= h.depth) { g.setColour (col::pink); g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (e->p)); }
+        }
+    }
+
+    // the sources, far ones first
+    struct S { int k; V3 now, home; Proj pn; };
+    std::vector<S> srcs;
     for (int k = 0; k < ns; ++k)
     {
-        juce::String pre (TantriProcessor::kSrcId[k]);
-        const int x0 = k * colW + (colW - 4 * 61) / 2;
-        addKnob (pre + "_az", "DIRECTION", x0, 452);
-        addKnob (pre + "_el", "HEIGHT", x0 + 61, 452);
-        addKnob (pre + "_dist", "DISTANCE", x0 + 122, 452);
-        addKnob (pre + "_rate", "RATE", x0 + 183, 452);
-        auto pill = std::make_unique<Pill> ("MOTION");
-        pill->text = [this, k] { return upper (kMotionName[juce::jlimit (0, motion::Count - 1, (int) pv (k, "_motion"))]); };
-        pill->valueColour = [k] { return srcColour (k); };
-        auto* raw = pill.get();
-        pill->onClick = [this, k, raw] { motionMenu (k, raw); };
-        pill->setBounds (x0, 420, 244, 24);
-        addAndMakeVisible (*pill);
-        motionPills.push_back (std::move (pill));
+        S s { k, worldOf (proc.srcX[k].load(), proc.srcY[k].load(), proc.srcD[k].load()),
+              worldOf (xForAzDeg (pv (k, "_az")), yForElDeg (pv (k, "_el")), pv (k, "_dist")), {} };
+        s.pn = project (s.now);
+        srcs.push_back (s);
     }
-    for (auto& kn : knobs) kn->onValueChange = [this] { repaint(); };
+    std::sort (srcs.begin(), srcs.end(), [] (const S& a, const S& b) { return a.pn.depth > b.pn.depth; });
+    for (auto& s : srcs)
+    {
+        const int k = s.k;
+        const auto colr = srcColour (k);
+        // trail
+        auto& tr = trails[(size_t) k];
+        for (int j = 1; j < tr.n; ++j)
+        {
+            const int i0 = (tr.w - j + 96) % 96, i1 = (tr.w - j - 1 + 96) % 96;
+            const float a = 1.0f - j / (float) tr.n;
+            line3D (g, tr.p[(size_t) i0], tr.p[(size_t) i1], colr.withAlpha (0.75f * a), 1.0f + 2.0f * a, false);
+        }
+        // ray from you, drop line and shadow on the floor
+        line3D (g, { 0, 0, 0 }, s.now, colr.withAlpha (0.22f), 1.0f);
+        const V3 foot { s.now.x, s.now.y, kFloorZ };
+        line3D (g, s.now, foot, colr.withAlpha (0.4f), 1.0f, false);
+        if (auto pf = project (foot); pf.ok)
+        {
+            const float r = std::max (3.0f, 0.05f * pf.scale);
+            g.setColour (juce::Colours::black.withAlpha (0.4f)); g.fillEllipse (juce::Rectangle<float> (r * 2.4f, r).withCentre (pf.p));
+            g.setColour (colr.withAlpha (0.5f)); g.drawEllipse (juce::Rectangle<float> (r * 2.4f, r).withCentre (pf.p), 1.0f);
+        }
+        // home, and the line to where the motion has taken it
+        if (auto ph = project (s.home); ph.ok)
+        {
+            fill (g, ngon (ph.p, 8, 7), col::tile, col::gold, 1.4f);
+            if (ph.p.getDistanceFrom (s.pn.p) > 4) line3D (g, s.home, s.now, colr.withAlpha (0.45f), 1.0f, false);
+            screenHome[(size_t) k] = ph.p;
+        }
+        if (! s.pn.ok) continue;
+        screenNow[(size_t) k] = s.pn.p;
+        const float r = juce::jlimit (7.0f, 30.0f, 0.085f * s.pn.scale);
+        // size: a translucent halo as wide as the source is
+        const float size = proc.srcSize[k].load();
+        if (size > 0.01f)
+        {
+            const float hr = r * (1.0f + 3.5f * size);
+            g.setColour (colr.withAlpha (0.12f)); g.fillEllipse (juce::Rectangle<float> (hr * 2, hr * 2).withCentre (s.pn.p));
+            g.setColour (colr.withAlpha (0.4f)); g.drawEllipse (juce::Rectangle<float> (hr * 2, hr * 2).withCentre (s.pn.p), 1.0f);
+        }
+        const float glow = juce::jlimit (0.0f, 1.0f, act[k] * 4.0f);
+        if (glow > 0.02f)
+        {
+            g.setColour (col::gold2.withAlpha (0.3f * glow));
+            g.fillEllipse (juce::Rectangle<float> (r * 3.4f, r * 3.4f).withCentre (s.pn.p));
+        }
+        fill (g, star (s.pn.p, 8, r, r * 0.55f, -kHalfPi + frame * 0.02f * (k + 1)), colr, dragging == k || hoverSrc == k ? col::white : col::gold, 2.0f);
+        g.setColour (col::white); g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (s.pn.p));
+        g.setColour (col::white); g.setFont (font (10));
+        g.drawText (kSrcName[k], juce::Rectangle<float> (90, 12).withCentre (s.pn.p.translated (0, r + 9)), juce::Justification::centred);
+    }
+    g.setColour (col::dim); g.setFont (font (9, false));
+    g.drawText (juce::String (juce::CharPointer_UTF8 ("DRAG SPACE: TURN \xc2\xb7 DRAG SOURCE: PLACE \xc2\xb7 SHIFT: DISTANCE \xc2\xb7 WHEEL: ZOOM / DISTANCE \xc2\xb7 DOUBLE-CLICK: MOTION / RESET")),
+                area.withTrimmedTop (area.getHeight() - 16), juce::Justification::centred);
 }
-SpacePanel::~SpacePanel() = default;
 
-float SpacePanel::pv (int k, const char* suffix) const
-{
-    return proc.apvts.getRawParameterValue (juce::String (TantriProcessor::kSrcId[k]) + suffix)->load();
-}
-
-void SpacePanel::paint (juce::Graphics& g)
+void Space3D::paintMap (juce::Graphics& g, juce::Rectangle<float> area)
 {
     using namespace tantri::field;
     const int ns = TantriProcessor::kSources;
-    // ---- the unrolled sphere
-    juce::Rectangle<float> map (0, 0, (float) kMapW, (float) kMapH);
-    g.setColour (col::tile); g.fillRect (map);
-    g.setColour (col::edge); g.drawRect (map, 1);
-    // height bands every 15 degrees (darker going down), gold horizon
+    const float W = area.getWidth();
     for (int e = -45; e < 90; e += 15)
     {
         const float y0 = mapPoint (0, yForElDeg ((float) e + 15)).y, y1 = mapPoint (0, yForElDeg ((float) e)).y;
         g.setColour (col::bg.interpolatedWith (col::tile, 0.55f + 0.45f * (e + 45) / 135.0f));
-        g.fillRect (1.0f, y0, kMapW - 2.0f, y1 - y0 - 1.0f);
+        g.fillRect (area.getX(), y0, W, y1 - y0 - 1.0f);
     }
     const float hy = mapPoint (0, yForElDeg (0)).y;
-    g.setColour (col::gold); g.fillRect (1.0f, hy - 1.5f, kMapW - 2.0f, 3.0f);
-    // the directions: a small star every 45 degrees on the horizon, names above
-    static const char* dirs[9] = { "BEHIND", "", "LEFT", "", "FRONT", "", "RIGHT", "", "BEHIND" };
+    g.setColour (col::gold); g.fillRect (area.getX(), hy - 1.5f, W, 3.0f);
+    static const char* dirs[9] = { "BEHIND", "", "RIGHT", "", "FRONT", "", "LEFT", "", "BEHIND" };
     for (int i = 0; i <= 8; ++i)
     {
-        const float x = i / 8.0f * kMapW;
-        g.setColour (col::off); g.drawVerticalLine ((int) x, 1.0f, kMapH - 1.0f);
+        const float x = area.getX() + i / 8.0f * W;
+        g.setColour (col::off); g.drawVerticalLine ((int) x, area.getY(), area.getBottom());
         fill (g, star ({ x, hy }, 4, i % 2 ? 6.0f : 9.0f, 3.0f), i % 2 ? col::gold : col::white, col::gold, 1.0f);
         if (dirs[i][0] != 0)
         {
             g.setColour (col::grey); g.setFont (font (10));
-            g.drawText (dirs[i], juce::Rectangle<float> (70, 14).withCentre ({ juce::jlimit (36.0f, kMapW - 36.0f, x), 12.0f }), juce::Justification::centred);
+            g.drawText (dirs[i], juce::Rectangle<float> (70, 14).withCentre ({ juce::jlimit (area.getX() + 36, area.getRight() - 36, x), area.getY() + 12 }), juce::Justification::centred);
         }
     }
     g.setColour (col::dim); g.setFont (font (9, false));
-    g.drawText ("OVERHEAD", 8, 24, 80, 12, juce::Justification::left);
-    g.drawText (juce::String (juce::CharPointer_UTF8 ("45\xc2\xb0 BELOW")), 8, kMapH - 15, 80, 12, juce::Justification::left);
-
-    // the sources: trail, home ring, the moving star (larger when near), its name
+    g.drawText ("OVERHEAD", (int) area.getX() + 8, (int) area.getY() + 24, 80, 12, juce::Justification::left);
+    g.drawText (juce::String (juce::CharPointer_UTF8 ("45\xc2\xb0 BELOW")), (int) area.getX() + 8, (int) area.getBottom() - 15, 80, 12, juce::Justification::left);
     for (int k = 0; k < ns; ++k)
     {
         const auto colr = srcColour (k);
         auto& tr = trails[(size_t) k];
         for (int j = 0; j < tr.n; ++j)
         {
-            const int idx = (tr.w - 1 - j + 48) % 48;
-            const float a = 1.0f - j / 48.0f;
+            const int idx = (tr.w - 1 - j + 96) % 96;
+            const float a = 1.0f - j / 96.0f;
+            if (j > 0 && std::abs (mapPts[(size_t) k][(size_t) idx].x - mapPts[(size_t) k][(size_t) ((idx + 1) % 96)].x) > 0.5f) break;
             g.setColour (colr.withAlpha (0.55f * a));
-            g.fillEllipse (juce::Rectangle<float> (3.0f + 2.0f * a, 3.0f + 2.0f * a).withCentre (tr.p[(size_t) idx]));
+            g.fillEllipse (juce::Rectangle<float> (3.0f + 2.0f * a, 3.0f + 2.0f * a).withCentre (mapPoint (mapPts[(size_t) k][(size_t) idx].x, mapPts[(size_t) k][(size_t) idx].y)));
         }
         const auto home = mapPoint (xForAzDeg (pv (k, "_az")), yForElDeg (pv (k, "_el")));
         const auto now = mapPoint (proc.srcX[k].load(), proc.srcY[k].load());
+        screenNow[(size_t) k] = now; screenHome[(size_t) k] = home;
         const float d = proc.srcD[k].load();
         fill (g, ngon (home, 8, 9), col::tile, col::gold, 1.5f);
-        if (home.getDistanceFrom (now) > 3 && home.getDistanceFrom (now) < kMapW * 0.5f)
-        {
-            g.setColour (colr.withAlpha (0.5f));
-            g.drawLine ({ home, now }, 1.2f);
-        }
+        if (home.getDistanceFrom (now) > 3 && home.getDistanceFrom (now) < W * 0.5f) { g.setColour (colr.withAlpha (0.5f)); g.drawLine ({ home, now }, 1.2f); }
         const float r = 10.0f + 16.0f * (1.0f - d);
         const float glow = juce::jlimit (0.0f, 1.0f, act[k] * 4.0f);
-        if (glow > 0.02f)
-        {
-            g.setColour (col::gold2.withAlpha (0.3f * glow));
-            g.fillEllipse (juce::Rectangle<float> (r * 3.2f, r * 3.2f).withCentre (now));
-        }
+        if (glow > 0.02f) { g.setColour (col::gold2.withAlpha (0.3f * glow)); g.fillEllipse (juce::Rectangle<float> (r * 3.2f, r * 3.2f).withCentre (now)); }
         fill (g, star (now, 8, r, r * 0.55f), colr, dragging == k ? col::white : col::gold, 2.0f);
         g.setColour (col::white); g.fillEllipse (juce::Rectangle<float> (r * 0.5f, r * 0.5f).withCentre (now));
-        g.setColour (col::white); g.setFont (font (10));
+        g.setFont (font (10));
         g.drawText (kSrcName[k], juce::Rectangle<float> (90, 12).withCentre (now.translated (0, r + 9)), juce::Justification::centred);
-    }
-    g.setColour (col::dim); g.setFont (font (9, false));
-    g.drawText ("DRAG: PLACE   WHEEL: DISTANCE   DOUBLE-CLICK: MOTION", 8, kMapH - 15, kMapW - 16, 12, juce::Justification::right);
-
-    // ---- the field settings
-    const int fx = kMapW + 24;
-    g.setColour (col::white); g.setFont (font (21));
-    g.drawText ("AKASHA", fx, 0, 160, 28, juce::Justification::centredLeft);
-    const int on = proc.orderNow.load();
-    static const char* ord[8] = { "", "1ST", "2ND", "3RD", "4TH", "5TH", "6TH", "7TH" };
-    juce::String sub = on == 0 ? juce::String ("STEREO PREVIEW")
-                     : juce::String (ord[juce::jlimit (1, 7, on)]) + juce::String (juce::CharPointer_UTF8 (" ORDER \xc2\xb7 ")) + juce::String ((on + 1) * (on + 1)) + " CH";
-    g.setColour (col::grey); g.setFont (font (13));
-    g.drawText (sub, fx + 104, 4, 260, 22, juce::Justification::centredLeft);
-
-    // ---- the plan, seen from above: you in the middle, front up
-    const juce::Point<float> pc ((float) fx + 183, 300);
-    const float R = 62;
-    g.setColour (col::tile); g.fillEllipse (juce::Rectangle<float> (R * 2 + 16, R * 2 + 16).withCentre (pc));
-    g.setColour (col::gold); g.drawEllipse (juce::Rectangle<float> (R * 2, R * 2).withCentre (pc), 1.5f);
-    g.setColour (col::off); g.drawEllipse (juce::Rectangle<float> (R, R).withCentre (pc), 1.0f);
-    fill (g, star (pc, 4, 7, 3), col::white);
-    for (int k = 0; k < ns; ++k)
-    {
-        const float az = azimuth (proc.srcX[k].load()), el = elevation (proc.srcY[k].load());
-        const float rr = R * (0.15f + 0.85f * proc.srcD[k].load()) * std::cos (el);
-        const juce::Point<float> q (pc.x - rr * std::sin (az), pc.y - rr * std::cos (az));
-        fill (g, star (q, 6, 7, 3.5f), srcColour (k), col::gold, 1.0f);
-    }
-    g.setColour (col::dim); g.setFont (font (9));
-    g.drawText ("FRONT", juce::Rectangle<float> (60, 10).withCentre ({ pc.x, pc.y - R - 14 }), juce::Justification::centred);
-
-    // ---- the sources' columns
-    const int colW = 1144 / ns;
-    for (int k = 0; k < ns; ++k)
-    {
-        const int x0 = k * colW + (colW - 4 * 61) / 2;
-        g.setColour (srcColour (k)); g.setFont (font (21));
-        g.drawText (kSrcName[k], x0, 388, 244, 28, juce::Justification::centredLeft);
-        g.setColour (col::grey); g.setFont (font (11));
-        const float dd = proc.srcD[k].load();
-        g.drawText (juce::String (juce::roundToInt (azDegForX (proc.srcX[k].load()))) + " / " + juce::String (juce::roundToInt (elDegForY (proc.srcY[k].load())))
-                    + "  D " + juce::String (dd, 2), x0, 392, 244, 24, juce::Justification::centredRight);
     }
 }
 
-int SpacePanel::sourceAt (juce::Point<float> p) const
+int Space3D::sourceAt (juce::Point<float> p) const
 {
-    using namespace tantri::field;
-    int best = -1; float bd = 24;
+    int best = -1; float bd = 22;
     for (int k = 0; k < TantriProcessor::kSources; ++k)
-    {
-        for (auto q : { mapPoint (proc.srcX[k].load(), proc.srcY[k].load()), mapPoint (xForAzDeg (pv (k, "_az")), yForElDeg (pv (k, "_el"))) })
+        for (auto q : { screenNow[(size_t) k], screenHome[(size_t) k] })
             if (float d = q.getDistanceFrom (p); d < bd) { bd = d; best = k; }
-    }
     return best;
 }
 
-void SpacePanel::mouseDown (const juce::MouseEvent& e)
+void Space3D::mouseMove (const juce::MouseEvent& e)
 {
-    if (e.position.x > kMapW || e.position.y > kMapH) return;
-    dragging = sourceAt (e.position);
-    if (dragging < 0) return;
-    for (auto* sfx : { "_az", "_el" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->beginChangeGesture();
-    mouseDrag (e);
-}
-void SpacePanel::mouseDrag (const juce::MouseEvent& e)
-{
-    using namespace tantri::field;
-    if (dragging < 0) return;
-    const float x = juce::jlimit (0.0f, 1.0f, e.position.x / kMapW), y = juce::jlimit (0.0f, 1.0f, 1.0f - e.position.y / kMapH);
-    juce::String pre (TantriProcessor::kSrcId[dragging]);
-    auto* az = proc.apvts.getParameter (pre + "_az");
-    auto* el = proc.apvts.getParameter (pre + "_el");
-    az->setValueNotifyingHost (az->convertTo0to1 (azDegForX (x)));
-    el->setValueNotifyingHost (el->convertTo0to1 (elDegForY (y)));
-    repaint();
-}
-void SpacePanel::mouseUp (const juce::MouseEvent&)
-{
-    if (dragging >= 0)
-        for (auto* sfx : { "_az", "_el" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->endChangeGesture();
-    dragging = -1;
-    repaint();
-}
-void SpacePanel::mouseDoubleClick (const juce::MouseEvent& e)
-{
-    if (int k = sourceAt (e.position); k >= 0) motionMenu (k, motionPills[(size_t) k].get());
-}
-void SpacePanel::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
-{
-    int k = sourceAt (e.position);
-    if (k < 0) return;
-    auto* prm = proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[k]) + "_dist");
-    prm->beginChangeGesture();
-    prm->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, pv (k, "_dist") - w.deltaY * 0.15f));
-    prm->endChangeGesture();
+    const int k = viewArea().contains (e.position) ? sourceAt (e.position) : -1;
+    if (k != hoverSrc) { hoverSrc = k; repaint(); }
+    setMouseCursor (k >= 0 ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::NormalCursor);
 }
 
-void SpacePanel::motionMenu (int k, juce::Component* target)
+void Space3D::mouseDown (const juce::MouseEvent& e)
+{
+    for (int i = 0; i <= NumModes; ++i)
+        if (tabRect (i).contains (e.position))
+        {
+            if (i == NumModes) orbit = ! orbit;
+            else setMode (i);
+            repaint(); return;
+        }
+    lastMouse = e.position;
+    dragging = viewArea().contains (e.position) ? sourceAt (e.position) : -1;
+    distDrag = e.mods.isShiftDown();
+    if (dragging >= 0)
+    {
+        for (auto* sfx : { "_az", "_el", "_dist" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->beginChangeGesture();
+        if (mode == Map && ! distDrag) mouseDrag (e);
+    }
+    else orbiting = mode != Map;
+}
+
+void Space3D::dragSourceTo (juce::Point<float> from, juce::Point<float> to)
+{
+    using namespace tantri::field;
+    const int k = dragging;
+    const float azH = pv (k, "_az"), elH = pv (k, "_el");
+    const float ox = proc.srcX[k].load() - xForAzDeg (azH), oy = proc.srcY[k].load() - yForElDeg (elH), d = proc.srcD[k].load();
+    auto f = [&] (float a, float el) { return project (worldOf (xForAzDeg (a) + ox, yForElDeg (el) + oy, d)).p; };
+    const auto p0 = f (azH, elH), pa = f (azH + 1, elH), pe = f (azH, elH + 1);
+    const float j11 = pa.x - p0.x, j21 = pa.y - p0.y, j12 = pe.x - p0.x, j22 = pe.y - p0.y;
+    const auto dm = to - from;
+    const float t = j11 * j11 + j21 * j21 + j12 * j12 + j22 * j22, lam = 0.04f * t + 0.01f;
+    const float a11 = j11 * j11 + j21 * j21 + lam, a12 = j11 * j12 + j21 * j22, a22 = j12 * j12 + j22 * j22 + lam;
+    const float b1 = j11 * dm.x + j21 * dm.y, b2 = j12 * dm.x + j22 * dm.y;
+    const float det = a11 * a22 - a12 * a12;
+    if (std::abs (det) < 1e-9f) return;
+    const float daz = juce::jlimit (-25.0f, 25.0f, (a22 * b1 - a12 * b2) / det), del = juce::jlimit (-25.0f, 25.0f, (a11 * b2 - a12 * b1) / det);
+    float az = azH + daz; az -= 360.0f * std::round (az / 360.0f);
+    const float el = juce::jlimit (kElLow, kElHigh, elH + del);
+    juce::String pre (TantriProcessor::kSrcId[k]);
+    auto* pA = proc.apvts.getParameter (pre + "_az");
+    auto* pE = proc.apvts.getParameter (pre + "_el");
+    pA->setValueNotifyingHost (pA->convertTo0to1 (az));
+    pE->setValueNotifyingHost (pE->convertTo0to1 (el));
+}
+
+void Space3D::mouseDrag (const juce::MouseEvent& e)
+{
+    using namespace tantri::field;
+    const auto dm = e.position - lastMouse;
+    if (dragging >= 0)
+    {
+        juce::String pre (TantriProcessor::kSrcId[dragging]);
+        if (distDrag)
+        {
+            auto* p = proc.apvts.getParameter (pre + "_dist");
+            p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, pv (dragging, "_dist") + dm.y * 0.004f));
+        }
+        else if (mode == Map)
+        {
+            auto a = viewArea();
+            const float x = juce::jlimit (0.0f, 1.0f, (e.position.x - a.getX()) / a.getWidth()), y = juce::jlimit (0.0f, 1.0f, 1.0f - (e.position.y - a.getY()) / a.getHeight());
+            auto* az = proc.apvts.getParameter (pre + "_az");
+            auto* el = proc.apvts.getParameter (pre + "_el");
+            az->setValueNotifyingHost (az->convertTo0to1 (azDegForX (x)));
+            el->setValueNotifyingHost (el->convertTo0to1 (elDegForY (y)));
+        }
+        else dragSourceTo (lastMouse, e.position);
+    }
+    else if (orbiting)
+    {
+        camYaw = tYaw = camYaw - dm.x * 0.008f;
+        camPitch = tPitch = juce::jlimit (-0.25f, 1.55f, camPitch + dm.y * 0.006f);
+        freeYaw = camYaw; freePitch = camPitch;
+        mode = Free;
+    }
+    lastMouse = e.position;
+    repaint();
+}
+
+void Space3D::mouseUp (const juce::MouseEvent&)
+{
+    if (dragging >= 0)
+        for (auto* sfx : { "_az", "_el", "_dist" }) proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[dragging]) + sfx)->endChangeGesture();
+    dragging = -1; orbiting = false;
+    repaint();
+}
+
+void Space3D::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (int k = sourceAt (e.position); k >= 0 && viewArea().contains (e.position))
+    {
+        if (onMotionMenu) onMotionMenu (k, e.getPosition());
+        return;
+    }
+    if (mode != Map) { freeYaw = 3.6f; freePitch = 0.42f; tDist = 3.3f; setMode (Free); }
+}
+
+void Space3D::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    if (int k = sourceAt (e.position); k >= 0)
+    {
+        auto* prm = proc.apvts.getParameter (juce::String (TantriProcessor::kSrcId[k]) + "_dist");
+        prm->beginChangeGesture();
+        prm->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, pv (k, "_dist") - w.deltaY * 0.15f));
+        prm->endChangeGesture();
+        return;
+    }
+    if (mode != Map) tDist = juce::jlimit (1.7f, 7.0f, tDist * (1.0f - w.deltaY * 0.5f));
+}
+
+void Space3D::tick()
+{
+    frame += 1.0f;
+    if (orbit && mode != Map) { tYaw += 0.005f; if (mode == Free) freeYaw = tYaw; }
+    camYaw += std::remainder (tYaw - camYaw, kTwoPi) * 0.2f;
+    camPitch += (tPitch - camPitch) * 0.2f;
+    camDist += (tDist - camDist) * 0.2f;
+    for (int k = 0; k < TantriProcessor::kSources; ++k)
+    {
+        act[k] = std::max (proc.srcAct[k].load(), act[k] * 0.85f);
+        auto& tr = trails[(size_t) k];
+        tr.p[(size_t) tr.w] = worldOf (proc.srcX[k].load(), proc.srcY[k].load(), proc.srcD[k].load());
+        mapPts[(size_t) k][(size_t) tr.w] = { proc.srcX[k].load(), proc.srcY[k].load() };
+        tr.w = (tr.w + 1) % 96; tr.n = std::min (96, tr.n + 1);
+    }
+    repaint();
+}
+
+// ---------------------------------------------------------------- a modulator
+ModRow::ModRow (TantriProcessor& p, int i) : proc (p), index (i), id ("m" + juce::String (i + 1))
+{
+    using namespace tantri::field;
+    shapePill.label = juce::String (i + 1);
+    shapePill.text = [this] { return upper (kLfoShape[juce::jlimit (0, lfo::Count - 1, (int) getParam (proc, (id + "_shape").toRawUTF8()))]); };
+    shapePill.valueColour = [] { return col::gold2; };
+    shapePill.onClick = [this]
+    {
+        juce::PopupMenu m;
+        const int cur = (int) getParam (proc, (id + "_shape").toRawUTF8());
+        for (int s = 0; s < lfo::Count; ++s) m.addItem (s + 1, kLfoShape[s], true, s == cur);
+        juce::Component::SafePointer<ModRow> safe (this);
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&shapePill), [safe] (int r)
+        { if (safe != nullptr && r > 0) { setParam (safe->proc, (safe->id + "_shape").toRawUTF8(), (float) (r - 1)); safe->repaint(); } });
+    };
+    targetPill.label = juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92"));
+    targetPill.text = [this] { return targetShort ((int) getParam (proc, (id + "_target").toRawUTF8())); };
+    targetPill.valueColour = [this] { return (int) getParam (proc, (id + "_target").toRawUTF8()) == 0 ? col::dim : col::white; };
+    targetPill.onClick = [this]
+    {
+        juce::PopupMenu m;
+        const int cur = (int) getParam (proc, (id + "_target").toRawUTF8());
+        static const char* nm[4] = { "Sitar", "Tabla", "Tanpura", "Input" };
+        m.addItem (1, "None", true, cur == 0);
+        for (int k = 0; k < TantriProcessor::kSources; ++k)
+        {
+            juce::PopupMenu sub;
+            for (int j = 0; j < mt::PerSource; ++j)
+            {
+                const int t = 1 + k * mt::PerSource + j;
+                sub.addItem (t + 1, juce::String (kModSrcPart[j]).substring (0, 1).toUpperCase() + juce::String (kModSrcPart[j]).substring (1), true, t == cur);
+            }
+            m.addSubMenu (nm[k], sub, true, nullptr, cur >= 1 + k * mt::PerSource && cur < 1 + (k + 1) * mt::PerSource);
+        }
+        juce::PopupMenu field;
+        const int gb = 1 + TantriProcessor::kSources * mt::PerSource;
+        for (int j = 0; j < mt::Global; ++j) field.addItem (gb + j + 1, kModGlobal[j], true, gb + j == cur);
+        m.addSubMenu ("Field", field, true, nullptr, cur >= gb);
+        juce::Component::SafePointer<ModRow> safe (this);
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&targetPill), [safe] (int r)
+        { if (safe != nullptr && r > 0) { setParam (safe->proc, (safe->id + "_target").toRawUTF8(), (float) (r - 1)); safe->repaint(); } });
+    };
+    addAndMakeVisible (shapePill); addAndMakeVisible (targetPill);
+    rate = std::make_unique<StarKnob> (proc.apvts.getParameter (id + "_rate"), "RATE");
+    depth = std::make_unique<StarKnob> (proc.apvts.getParameter (id + "_depth"), "DEPTH");
+    for (auto* k : { rate.get(), depth.get() }) addAndMakeVisible (*k);
+    attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, id + "_rate", *rate));
+    attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, id + "_depth", *depth));
+}
+
+void ModRow::resized()
+{
+    shapePill.setBounds (0, 0, 96, 18);
+    targetPill.setBounds (100, 0, getWidth() - 100, 18);
+    scope = { 2, 24, 116, 58 };
+    rate->setBounds (122, 18, 61, 82);
+    depth->setBounds (183, 18, 61, 82);
+}
+
+void ModRow::paint (juce::Graphics& g)
+{
+    using namespace tantri::field;
+    g.setColour (col::bg.interpolatedWith (col::tile, 0.5f)); g.fillRect (scope);
+    g.setColour (col::edge); g.drawRect (scope, 1.0f);
+    g.drawHorizontalLine ((int) scope.getCentreY(), scope.getX() + 1, scope.getRight() - 1);
+    const int shape = (int) getParam (proc, (id + "_shape").toRawUTF8());
+    const float dep = getParam (proc, (id + "_depth").toRawUTF8());
+    const double ph = proc.modPhase[index].load();
+    const float seed = 0.37f + 0.17f * (float) index;
+    const bool live = (int) getParam (proc, (id + "_target").toRawUTF8()) > 0;
+    juce::Path full, scaled;
+    const int N = 116;
+    const float cy = scope.getCentreY(), hh = scope.getHeight() * 0.42f;
+    for (int i = 0; i <= N; ++i)
+    {
+        const double p = ph - 2.0 + 2.0 * i / N;
+        const float v = lfoValue (shape, p, seed);
+        const float x = scope.getX() + i * scope.getWidth() / N;
+        if (i == 0) { full.startNewSubPath (x, cy - v * hh); scaled.startNewSubPath (x, cy - v * dep * hh); }
+        else { full.lineTo (x, cy - v * hh); scaled.lineTo (x, cy - v * dep * hh); }
+    }
+    g.setColour (col::grey.withAlpha (0.3f)); g.strokePath (full, juce::PathStrokeType (1.0f));
+    g.setColour (live ? col::gold2 : col::dim); g.strokePath (scaled, juce::PathStrokeType (2.0f));
+    const float v = proc.modOut[index].load() * dep;
+    fill (g, star ({ scope.getRight() - 3, cy - v * hh }, 4, 6, 2.5f), live ? col::white : col::dim);
+}
+
+// ---------------------------------------------------------------- the space page
+SpacePanel::SpacePanel (TantriProcessor& p) : proc (p), view (p)
+{
+    using namespace tantri::field;
+    addAndMakeVisible (view);
+    view.setBounds (kColW + 12, 0, kW - 2 * (kColW + 12), kTopH);
+    view.onMotionMenu = [this] (int k, juce::Point<int> at) { motionMenu (k, &view, at); };
+
+    auto addKnob = [this] (const juce::String& id, const char* label, int x, int y, int w = 61)
+    {
+        auto* prm = proc.apvts.getParameter (id);
+        if (prm == nullptr) return;
+        auto knob = std::make_unique<StarKnob> (prm, label);
+        knob->setBounds (x, y, w, 82);
+        addAndMakeVisible (*knob);
+        attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, id, *knob));
+        knobs.push_back (std::move (knob));
+    };
+    // the field and its effects, four to a row, rows centred
+    struct K { juce::String id; const char* label; };
+    std::vector<K> field { { "order", "ORDER" }, { "rolloff", "ROLLOFF" }, { "air", "AIR" }, { "spread", "SPREAD" },
+                           { "blur", "BLUR" }, { "near", "NEAR" }, { "mspeed", "SPEED" }, { "spin", "SPIN" },
+                           { "yaw", "TURN" }, { "pitch", "TILT" }, { "doppler", "DOPPLER" }, { "reflect", "REFLECT" },
+                           { "prox", "PROXIMITY" }, { "hcue", "HEIGHT" } };
+    if (TantriProcessor::kFx) { field.push_back ({ "i_level", "INPUT" }); field.push_back ({ "i_symp", "SYMPATHY" }); }
+    const int nf = (int) field.size();
+    for (int i = 0; i < nf; ++i)
+    {
+        const int row = i / 4, inRow = std::min (4, nf - row * 4);
+        addKnob (field[(size_t) i].id, field[(size_t) i].label, (kColW - inRow * 61) / 2 + (i % 4) * 61, 30 + row * 100 + 9);
+    }
+    // the modulators
+    for (int m = 0; m < TantriProcessor::kMods; ++m)
+    {
+        auto row = std::make_unique<ModRow> (proc, m);
+        row->setBounds (kW - kColW, 30 + m * 100, kColW, 100);
+        addAndMakeVisible (*row);
+        mods.push_back (std::move (row));
+    }
+    // each source: motion, then direction, height, distance, size, motion rate
+    const int ns = TantriProcessor::kSources;
+    const int colW = kW / ns;
+    const int kw = std::min (61, (colW - 8) / 5);
+    for (int k = 0; k < ns; ++k)
+    {
+        juce::String pre (TantriProcessor::kSrcId[k]);
+        const int x0 = k * colW + (colW - 5 * kw) / 2;
+        int j = 0;
+        for (auto [sfx, lbl] : { std::pair<const char*, const char*> { "_az", "DIR" }, { "_el", "HEIGHT" }, { "_dist", "DIST" }, { "_size", "SIZE" }, { "_rate", "RATE" } })
+            addKnob (pre + sfx, lbl, x0 + kw * j++, 514, kw);
+        auto pill = std::make_unique<Pill> ("MOTION");
+        pill->text = [this, k] { return upper (kMotionName[juce::jlimit (0, motion::Count - 1, (int) pv (k, "_motion"))]); };
+        pill->valueColour = [k] { return srcColour (k); };
+        auto* raw = pill.get();
+        pill->onClick = [this, k, raw] { motionMenu (k, raw); };
+        addAndMakeVisible (*pill);
+        motionPills.push_back (std::move (pill));
+    }
+    for (auto& kn : knobs) kn->onValueChange = [this] { repaint(); };
+    tick();
+}
+SpacePanel::~SpacePanel() = default;
+
+float SpacePanel::pv (int k, const char* suffix) const { return srcParam (proc, k, suffix); }
+
+void SpacePanel::paint (juce::Graphics& g)
+{
+    using namespace tantri::field;
+    // column titles, centred over their columns
+    g.setColour (col::white); g.setFont (font (19));
+    g.drawText ("FIELD", 0, 0, kColW, 26, juce::Justification::centred);
+    g.drawText ("MODULATORS", kW - kColW, 0, kColW, 26, juce::Justification::centred);
+    g.setColour (col::edge);
+    g.drawHorizontalLine (27, 30.0f, kColW - 30.0f);
+    g.drawHorizontalLine (27, kW - kColW + 30.0f, kW - 30.0f);
+    // the sources' columns
+    const int ns = TantriProcessor::kSources;
+    const int colW = kW / ns;
+    for (int k = 0; k < ns; ++k)
+    {
+        const int x0 = k * colW;
+        g.setColour (srcColour (k)); g.setFont (font (19));
+        g.drawText (kSrcName[k], x0, 444, colW, 24, juce::Justification::centred);
+        g.setColour (col::grey); g.setFont (font (10));
+        const float dd = proc.srcD[k].load();
+        g.drawText (juce::String (juce::roundToInt (azDegForX (proc.srcX[k].load()))) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0 \xc2\xb7 "))
+                    + juce::String (juce::roundToInt (elDegForY (proc.srcY[k].load()))) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0 \xc2\xb7 "))
+                    + juce::String (metres (dd), 1) + " M", x0, 467, colW, 14, juce::Justification::centred);
+        if (k > 0) { g.setColour (col::edge); g.drawVerticalLine (x0, 452.0f, 596.0f); }
+    }
+}
+
+void SpacePanel::motionMenu (int k, juce::Component* target, juce::Point<int> at)
 {
     using namespace tantri::field;
     juce::PopupMenu m;
@@ -571,7 +1040,9 @@ void SpacePanel::motionMenu (int k, juce::Component* target)
     for (int i = 0; i < motion::Count; ++i)
         m.addItem (i + 1, juce::String (kMotionName[i]) + "   " + juce::String (juce::CharPointer_UTF8 (hint[i])), true, i == cur);
     juce::Component::SafePointer<SpacePanel> safe (this);
-    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (target), [safe, k] (int r)
+    auto opts = juce::PopupMenu::Options().withTargetComponent (target);
+    if (at != juce::Point<int>()) opts = opts.withTargetScreenArea (target->localAreaToGlobal (juce::Rectangle<int> (at.x, at.y, 1, 1)));
+    m.showMenuAsync (opts, [safe, k] (int r)
     {
         if (safe == nullptr || r < 1) return;
         setParam (safe->proc, (juce::String (TantriProcessor::kSrcId[k]) + "_motion").toRawUTF8(), (float) (r - 1));
@@ -581,18 +1052,18 @@ void SpacePanel::motionMenu (int k, juce::Component* target)
 
 void SpacePanel::tick()
 {
-    for (int k = 0; k < TantriProcessor::kSources; ++k)
+    view.tick();
+    for (auto& m : mods) m->tick();
+    const int ns = TantriProcessor::kSources;
+    const int colW = kW / ns;
+    for (int k = 0; k < ns; ++k)
     {
-        act[k] = std::max (proc.srcAct[k].load(), act[k] * 0.85f);
-        auto& tr = trails[(size_t) k];
-        tr.p[(size_t) tr.w] = mapPoint (proc.srcX[k].load(), proc.srcY[k].load());
-        tr.w = (tr.w + 1) % 48; tr.n = std::min (48, tr.n + 1);
-        // a jump round the back edge would draw a line across the map: start the trail again
-        const auto prev = tr.p[(size_t) ((tr.w + 46) % 48)], last = tr.p[(size_t) ((tr.w + 47) % 48)];
-        if (tr.n > 1 && std::abs (prev.x - last.x) > kMapW * 0.5f) { tr.n = 1; }
+        auto& p = *motionPills[(size_t) k];
+        const int w = p.preferredWidth() + 6;
+        p.setBounds (k * colW + (colW - w) / 2, 486, w, 22);
+        p.repaint();
     }
-    for (auto& p : motionPills) p->repaint();
-    repaint();
+    repaint (0, 440, kW, 44);
 }
 
 // ---------------------------------------------------------------- raga strip (3 saptaks)
@@ -607,7 +1078,8 @@ std::vector<RagaStrip::Slot> RagaStrip::slots() const
     for (int o = o0; o < o0 + octs; ++o)
         for (int d = 0; d < sc.n; d += stride) s.push_back ({ d, o, 0 });
     float step = std::min (54.0f, (getWidth() - 72.0f) / std::max<size_t> (1, s.size() - 1));
-    for (size_t i = 0; i < s.size(); ++i) s[i].x = 36 + step * i;
+    const float x0 = (getWidth() - step * (float) (s.size() - 1)) * 0.5f;   // centred
+    for (size_t i = 0; i < s.size(); ++i) s[i].x = x0 + step * i;
     return s;
 }
 void RagaStrip::paint (juce::Graphics& g)
@@ -672,14 +1144,18 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
         { "t_press", "PRESS", 1 }, { "t_ring", "RING", 1 }, { "t_snap", "SNAP", 1 }, { "t_room", "ROOM", 1 }, { "t_level", "LEVEL", 1 },
         { "n_cycle", "CYCLE", 2 }, { "n_jawari", "JAWARI", 2 }, { "n_first", "1ST STR", 2 }, { "n_octave", "REGISTER", 2 },
         { "n_human", "HUMAN", 2 }, { "n_width", "WIDTH", 2 }, { "n_room", "ROOM", 2 }, { "n_level", "LEVEL", 2 },
-        { "n_mode", "MODE", 2 }, { "n_voicing", "VOICING", 2 } };
+        { "n_mode", "MODE", 2 }, { "n_voicing", "VOICING", 2 }, { "n_bow", "BOW RATE", 2 }, { "n_bowpw", "BOW WIDTH", 2 } };
+    int count[3] = { 0, 0, 0 };
+    for (auto& k : ks) ++count[k.group];
     int idx[3] = { 0, 0, 0 };
     for (auto& k : ks)
     {
         auto* prm = proc.apvts.getParameter (k.id);
         auto knob = std::make_unique<StarKnob> (prm, k.label);
         int i = idx[k.group]++;
-        knob->setBounds (28 + k.group * 388 + (i % 6) * 61, 494 + (i / 6) * 84, 61, 82);
+        // six to a row, every row centred under its tile (the page is mirror symmetrical)
+        const int row = i / 6, inRow = std::min (6, count[k.group] - row * 6);
+        knob->setBounds (28 + k.group * 388 + (368 - inRow * 61) / 2 + (i % 6) * 61, 494 + row * 84, 61, 82);
         addAndMakeVisible (*knob);
         attachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, k.id, *knob));
         knob->onValueChange = [this] { sitarTile.repaint(); tanpuraTile.repaint(); };
@@ -772,19 +1248,25 @@ void Canvas::resized()
     sitarTile.setBounds (tileBounds (0)); tablaTile.setBounds (tileBounds (1)); tanpuraTile.setBounds (tileBounds (2));
     strip.setBounds (28, 696, 1144, 62);
     if (space) space->setBounds (28, 76, 1144, 604);
-    int x = 150;
-    for (auto* pl : { &saPill, &ragaPill, &lockPill, &meendPill, &roomPill, &viewPill })
+    // the header mirrors about the title: SA SCALE MAP | OUT MIDI VOICES on the top row,
+    // MEEND | ROOM under them, VIEW under the title
+    auto widthOf = [] (Pill& p, int cap = 1000) { return std::min (cap, std::max (60, p.preferredWidth() + 12)); };
+    int x = 28;
+    for (auto* pl : { &saPill, &ragaPill, &lockPill })
     {
-        if (pl == &viewPill && space == nullptr) continue;
-        int w = std::max (60, pl->preferredWidth() + 16);
-        pl->setBounds (x, 26, w, 28); x += w + 14;
+        const int w = widthOf (*pl, pl == &ragaPill ? 250 : 1000);
+        pl->setBounds (x, 12, w, 28); x += w + 14;
     }
-    int vw = voicesPill.preferredWidth() + 4;
-    voicesPill.setBounds (1172 - vw, 26, vw, 28);
-    int mw = midiPill.preferredWidth() + 8;
-    midiPill.setBounds (voicesPill.getX() - 24 - mw, 26, mw, 28);
-    // the output meter sits in the header, left of MIDI (both views)
-    outPill.setBounds (std::max (x, midiPill.getX() - 24 - 176), 26, 176, 28);
+    int r = 1172;
+    for (auto* pl : { &voicesPill, &midiPill, &outPill })
+    {
+        const int w = pl == &outPill ? 176 : widthOf (*pl);
+        r -= w; pl->setBounds (r, 12, w, 28); r -= 14;
+    }
+    meendPill.setBounds (28, 42, widthOf (meendPill), 26);
+    const int rw = widthOf (roomPill);
+    roomPill.setBounds (1172 - rw, 42, rw, 26);
+    if (space) { const int vw = widthOf (viewPill); viewPill.setBounds (600 - vw / 2, 46, vw, 26); }
 }
 
 void Canvas::paint (juce::Graphics& g)
@@ -793,22 +1275,20 @@ void Canvas::paint (juce::Graphics& g)
     g.setColour (col::white); g.setFont (font (24));
     if (TantriProcessor::kSpatial)
     {
-        g.drawText ("TANTRI", 28, 16, 120, 30, juce::Justification::centredLeft);
+        g.drawText ("TANTRI", 500, 6, 200, 28, juce::Justification::centred);
         g.setColour (col::gold2); g.setFont (font (10));
-        g.drawText (TantriProcessor::kFx ? "AKASHA FX" : "AKASHA", 29, 44, 120, 12, juce::Justification::centredLeft);
+        g.drawText (TantriProcessor::kFx ? "AKASHA FX" : "AKASHA", 500, 32, 200, 12, juce::Justification::centred);
     }
-    else g.drawText ("TANTRI", 28, 22, 120, 36, juce::Justification::centredLeft);
+    else g.drawText ("TANTRI", 500, 20, 200, 36, juce::Justification::centred);
     if (spaceView) return;
     struct N { const char* a; const char* b; };
     static const N names[3] = { { "SITAR 22", "WAVEGUIDE \xc2\xb7 JAWARI \xc2\xb7 13 TARAF" }, { "TABLA 16", "MODAL \xc2\xb7 TEENTAAL" }, { "TANPURA 4", "" } };
     for (int i = 0; i < 3; ++i)
     {
         float x = 28.0f + i * 388;
-        g.setColour (col::white); g.setFont (font (21));
         juce::String title = juce::CharPointer_UTF8 (names[i].a);
         if (i == 0) title = "SITAR " + juce::String (proc.activeScale().n);   // degrees of the active scale
-        g.drawText (title, juce::Rectangle<float> (x, 452, 200, 28), juce::Justification::centredLeft);
-        float w = juce::GlyphArrangement::getStringWidth (font (21), title);
+        const float w = juce::GlyphArrangement::getStringWidth (font (21), title);
         juce::String sub = juce::CharPointer_UTF8 (names[i].b);
         if (i == 2)
         {
@@ -821,8 +1301,13 @@ void Canvas::paint (juce::Graphics& g)
             }
             else sub = juce::String (nm[0]) + " SA SA sa";
         }
+        // title and subtitle as one line, centred under the tile
+        const float sw = sub.isEmpty() ? 0.0f : juce::GlyphArrangement::getStringWidth (font (13), sub) + 8;
+        const float x0 = x + (368 - (w + sw)) * 0.5f;
+        g.setColour (col::white); g.setFont (font (21));
+        g.drawText (title, juce::Rectangle<float> (x0, 452, w + 2, 28), juce::Justification::centredLeft);
         g.setColour (col::grey); g.setFont (font (13));
-        g.drawText (sub, juce::Rectangle<float> (x + w + 8, 457, 300, 22), juce::Justification::centredLeft);
+        g.drawText (sub, juce::Rectangle<float> (x0 + w + 8, 457, sw + 4, 22), juce::Justification::centredLeft);
     }
 }
 
@@ -847,9 +1332,9 @@ void Canvas::tick()
     sitarTile.repaint(); tablaTile.repaint(); tanpuraTile.repaint(); strip.repaint();
     voicesPill.repaint(); ragaPill.repaint(); saPill.repaint(); outPill.repaint();
     if (spaceView && space) space->tick();
-    else repaint (800, 450, 400, 34);   // the tanpura's subtitle (drone notes)
+    else repaint (800, 450, 372, 34);   // the tanpura's subtitle (drone notes)
     static int lastFirst = -1;
-    if (proc.tanpuraFirst.load() != lastFirst) { lastFirst = proc.tanpuraFirst.load(); repaint (800, 450, 400, 34); }
+    if (proc.tanpuraFirst.load() != lastFirst) { lastFirst = proc.tanpuraFirst.load(); repaint (800, 450, 372, 34); }
 }
 
 void Canvas::editValue (Pill& pill, const char* paramId)

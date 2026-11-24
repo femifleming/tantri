@@ -22,6 +22,11 @@ struct TanpuraParams
     int voicing = 1;        // 0 single note, 1 chord
     int note = 1;           // single: which string (0 first, 1 Sa, 2 upper-beating Sa, 3 kharaj sa)
     int chordMask = 0xF;    // chord: bit i = string i drones
+    // the drone's "bow": the pulse oscillator that keeps the strings sounding. Its rate is a ratio of
+    // each string's own pitch (1 = locked to it, 1/2 = every other period, 1.5 = between
+    // harmonics), its width the length of each pulse in milliseconds
+    float bowRate = 1.0f;
+    float bowWidthMs = 0.7f;
 };
 
 class Tanpura
@@ -75,7 +80,12 @@ public:
                 // pitch (stick-slip, as a bow makes), a trace of noise; its gain is held by control()
                 // so the level never decays while the jawari keeps the harmonics turning
                 s.ph += s.inc;
-                if (s.ph >= 1.0) { s.ph -= 1.0; s.pk = 0; s.plen = pulseLen * (1.0f + 0.15f * prm.human * rng.next()); }
+                if (s.ph >= 1.0)
+                {
+                    s.ph -= 1.0; s.pk = 0;
+                    s.plen = pulseLen * (1.0f + 0.15f * prm.human * rng.next());
+                    if (s.inc > 0.0) s.plen = std::min (s.plen, float (0.9 / s.inc));   // never longer than its period
+                }
                 float p = 0.0f;
                 if (s.pk < s.plen) { p = std::sin (2.0f * float (kPi) * s.pk / s.plen); s.pk += 1.0f; }
                 s.nz += (rng.next() - s.nz) * nzK;
@@ -95,6 +105,7 @@ public:
     }
 
     void setGate (bool g) { gate = g; }
+    float bowMod = 1.0f;   // the bow rate multiplied by a modulator (Tantri Akasha)
     bool droning (int i) const { return str[i].fade > 0.01f; }
     float stringLevel (int i) const { return std::min (1.0f, std::sqrt (str[i].level) * 25.0f); }
     float pluckFlash[4] {};
@@ -145,6 +156,7 @@ private:
     void control()
     {
         const double dt = 32.0 / fs;
+        pulseLen = std::max (2.0f, float (prm.bowWidthMs * 0.001 * fs));
         for (auto& f : pluckFlash) f = std::max (0.0f, f - float (dt) * 1.5f);
         // slow pitch drift: the instrument is alive, never a frozen oscillator
         for (int i = 0; i < 4; ++i)
@@ -152,7 +164,7 @@ private:
             drift[i] += (rng.next() * 0.02 - drift[i] * 0.002);
             double cents = std::clamp (drift[i], -1.2, 1.2);
             double f = stringHz[i] * std::pow (2.0, cents / 1200.0) * std::pow (2.0, ((i == 2) ? 0.9 : (i == 1 ? -0.4 : 0.0)) / 1200.0);
-            str[i].inc = f / fs;
+            str[i].inc = f * double (prm.bowRate * bowMod) / fs;
             str[i].a.setFreq (f);
             str[i].b.setFreq (f * std::pow (2.0, 0.7 / 1200.0));
         }

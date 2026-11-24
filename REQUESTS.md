@@ -19,3 +19,8 @@ Everything that was asked for while Tantri was being made, in order, as typed (d
 10. > also make tantri a spatial audio vst and effect with the same spatialization techniques and modulation as the other spatial vsts and instruments you have helped me build. i also want to have the optino for the tanpura to just drone continuously without decay, and be able to play the drone mode either a single note or chord of those notes. i dont need to play the tanpura section with midi i just want to have the option for it to also drone. when youre done commit and push to github, make it work on windows and mac, dont worry about linux.
 11. > get rid of the word freakiepie everywhere, thats an old project name i dont want it to show up next to vst names in parenthesis or anywhere for that matter
 12. > forget about the freakiepie stuff just push tantri and the spatial tantri
+
+## 2026-11-23 — Tantri 1.2: the 3D space, spatial effects, modulators, the bow
+
+13. > make tantri ashaka's spatialixzation page way more in depth, i want a 3d visual that i can move around to see where things are moving in space, and i want more spatialization effects and modulators. i also want to be able to change the rate of the oscillator thats resonating the tanpura. also mke the layouts for both mirror symettircal.
+14. > push to github when youre done.

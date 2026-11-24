@@ -69,6 +69,13 @@ public:
     static constexpr const char* kSrcId[4] = { "sitar", "tabla", "tanpura", "input" };
     std::atomic<float> srcX[4] {}, srcY[4] {}, srcD[4] {}, srcAct[4] {};   // where each source is now (play-area units)
     std::atomic<int> orderNow { 0 };                            // 0 = stereo preview
+    std::atomic<float> srcSize[4] {};                           // each source's size now (with modulation)
+    std::atomic<float> rotYaw { 0 }, rotPitch { 0 };            // the scene rotation now (radians, spin + modulation)
+    std::atomic<float> fieldNow[4] {};                          // reflections, doppler, room size now (for the 3D view)
+    static constexpr int kMods = 4;
+    std::atomic<double> modPhase[kMods] {};                     // each LFO's phase (cycles)
+    std::atomic<float> modOut[kMods] {};                        // each LFO's value now, -1 .. 1 (before depth)
+    static juce::StringArray modTargetNames();
     bool droning (int i) const { return tanpuraDrone[i].load(); }
     std::atomic<bool> tanpuraDrone[4] {};
     static juce::StringArray scaleNames();
@@ -103,6 +110,13 @@ private:
     tantri::field::Encoder enc[4], encRev[2];
     tantri::field::Flock flock;
     double tau[4] {};
+    tantri::field::DelayLine dly[4];
+    double dlyNow[4] {};
+    float refDelay[4][6] {};
+    tantri::field::MonoEncoder encRef[4][6];
+    double lfoPh[kMods] {};
+    double spinAngle = 0;
+    std::vector<float> dlL, dlR, refBuf;
     int lastMotion[4] { -1, -1, -1, -1 };
     int orderCap = ambi::kMaxOrder;
     juce::AudioBuffer<float> srcBuf, inBuf, fold;

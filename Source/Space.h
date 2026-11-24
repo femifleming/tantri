@@ -39,6 +39,8 @@ struct SpaceParams
     float nearR = 0.12f;    // inside this distance a sound spreads all round you
     float yaw = 0.0f, pitch = 0.0f;   // scene rotation, radians
     float mspeed = 1.0f;    // all motions faster or slower
+    float prox = 0.0f;      // near-field bass: sounds right by your head gain low end
+    float hcue = 0.0f;      // height cue: raised sounds brighten, lowered sounds dull (pinna-like)
 };
 
 // level by distance. rolloff 0.5: 0 dB at your head, -6 dB at 0.35, about -30 dB at the far edge
@@ -281,23 +283,39 @@ inline void rotate (float& az, float& el, const SpaceParams& sp)
 struct Encoder
 {
     std::array<float, ambi::kCh> cL {}, cR {};
-    float lpL = 0, lpR = 0;
-    void reset() { cL.fill (0); cR.fill (0); lpL = lpR = 0; }
+    float lpL = 0, lpR = 0, pxL = 0, pxR = 0, hcL = 0, hcR = 0;
+    void reset() { cL.fill (0); cR.fill (0); lpL = lpR = pxL = pxR = hcL = hcR = 0; }
 
     // az/el in radians (after rotation), d distance; extraOrderW < 1 makes the source more diffuse
     void process (const float* inL, const float* inR, float* const* out, int nch, int order, int n,
                   float az, float el, float d, float gain, const SpaceParams& sp, double sr, float extraOrderW = 1.0f,
-                  float* scratchL = nullptr, float* scratchR = nullptr)
+                  float* scratchL = nullptr, float* scratchR = nullptr, float size = 0.0f)
     {
         // air: far sounds lose their top
         const float cutoff = 18000.0f * std::pow (3500.0f / 18000.0f, d * d * sp.air * 2.0f);
         const float kAir = 1.0f - std::exp (-2.0f * kPi * std::fmin (cutoff, (float) sr * 0.45f) / (float) sr);
+        // near-field bass (proximity): up to about +8 dB below 160 Hz inside a third of the field
+        const float nearAmt = clamp01 (1.0f - d / 0.35f);
+        const float kProx = sp.prox * nearAmt * nearAmt * 1.5f;
+        const float kPx = 1.0f - std::exp (-2.0f * kPi * 160.0f / (float) sr);
+        // height cue: the band above 6 kHz lifted for sounds above you, dulled for sounds below
+        const float elN = el > 0.0f ? 0.55f * el / (0.5f * kPi) : 0.75f * el / (0.25f * kPi);
+        const float kHc = sp.hcue * (elN < -0.75f ? -0.75f : elN);
+        const float kHp = 1.0f - std::exp (-2.0f * kPi * std::fmin (6000.0f, (float) sr * 0.4f) / (float) sr);
         for (int i = 0; i < n; ++i)
         {
-            lpL += (inL[i] - lpL) * kAir; lpR += (inR[i] - lpR) * kAir;
+            float l = inL[i], r = inR[i];
+            pxL += (l - pxL) * kPx; pxR += (r - pxR) * kPx;
+            l += kProx * pxL; r += kProx * pxR;
+            hcL += (l - hcL) * kHp; hcR += (r - hcR) * kHp;
+            l += kHc * (l - hcL); r += kHc * (r - hcR);
+            lpL += (l - lpL) * kAir; lpR += (r - lpR) * kAir;
             scratchL[i] = lpL; scratchR[i] = lpR;
         }
-        const float half = width (d, sp) * 0.5f;
+        // size: a large source is wide and loses its sharpness of direction
+        float half = width (d, sp) * 0.5f;
+        half += (0.5f * kPi - half) * clamp01 (size) * 0.9f;
+        extraOrderW *= 1.0f - 0.8f * clamp01 (size);
         const auto yL = ambi::sh (az + half, el, order);
         const auto yR = ambi::sh (az - half, el, order);
         float nearK = clamp01 (d / std::fmax (0.001f, sp.nearR)) * (1.0f - 0.85f * sp.blur * d);
@@ -324,4 +342,133 @@ struct Encoder
         for (int c = nch; c < ambi::kCh; ++c) { cL[(size_t) c] = 0; cR[(size_t) c] = 0; }
     }
 };
+
+// ---- the delay each source travels (Doppler) and its first reflections
+inline float metres (float d) { return 0.5f + 9.5f * d; }        // the field's distance in metres
+constexpr float kSound = 343.0f;
+
+struct DelayLine
+{
+    std::vector<float> l, r;
+    int mask = 0, w = 0;
+    void prepare (double sr)
+    {
+        int n = 1; while (n < (int) (sr * 0.22) + 8) n <<= 1;
+        l.assign ((size_t) n, 0.0f); r.assign ((size_t) n, 0.0f); mask = n - 1; w = 0;
+    }
+    void write (float a, float b) { l[(size_t) w] = a; r[(size_t) w] = b; w = (w + 1) & mask; }
+    // dl samples back from the newest sample (>= 2), 4-point Hermite
+    static float herm (const std::vector<float>& x, int mask, double pos)
+    {
+        const int i = (int) std::floor (pos); const float f = (float) (pos - i);
+        const float y0 = x[(size_t) ((i - 1) & mask)], y1 = x[(size_t) (i & mask)], y2 = x[(size_t) ((i + 1) & mask)], y3 = x[(size_t) ((i + 2) & mask)];
+        const float c1 = 0.5f * (y2 - y0), c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3, c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        return ((c3 * f + c2) * f + c1) * f + y1;
+    }
+    void read (double dl, float& a, float& b) const
+    {
+        const double pos = (double) (w - 1) - dl;
+        a = herm (l, mask, pos); b = herm (r, mask, pos);
+    }
+    float readMono (double dl) const
+    {
+        const double pos = (double) (w - 1) - dl;
+        const int i = (int) std::floor (pos); const float f = (float) (pos - i);
+        const float a = l[(size_t) (i & mask)] + r[(size_t) (i & mask)], b = l[(size_t) ((i + 1) & mask)] + r[(size_t) ((i + 1) & mask)];
+        return 0.5f * (a + (b - a) * f);
+    }
+};
+
+// the room the reflections come from: half its length (front/back), half its width, ceiling and
+// floor heights from your ears, in metres; ROOM makes it bigger
+struct Room { float len, wid, ceil, floor; };
+inline Room roomFor (float size) { return { 3.5f + 11.0f * size, 2.5f + 9.0f * size, 1.3f + 4.5f * size, 1.6f }; }
+
+// the six first-order image sources of a sound at (az, el, d): their directions, how much later
+// they arrive than the sound itself, and their level (spreading + the walls' absorption)
+struct Image { float az, el, extra, gain, x, y, z; };
+inline void images (float az, float el, float d, const Room& rm, Image out[6])
+{
+    const float r = metres (d);
+    float p[3] = { r * std::cos (el) * std::cos (az), r * std::cos (el) * std::sin (az), r * std::sin (el) };
+    const float lim[3][2] = { { -rm.len, rm.len }, { -rm.wid, rm.wid }, { -rm.floor, rm.ceil } };
+    for (int a = 0; a < 3; ++a) p[a] = std::fmax (lim[a][0] * 0.95f, std::fmin (lim[a][1] * 0.95f, p[a]));
+    const float pr = std::sqrt (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]) + 1e-3f;
+    static constexpr float absorb[6] = { 0.72f, 0.72f, 0.75f, 0.75f, 0.6f, 0.8f };   // front, back, left, right, ceiling, floor
+    for (int k = 0; k < 6; ++k)
+    {
+        float q[3] = { p[0], p[1], p[2] };
+        const int a = k / 2;
+        q[a] = 2.0f * lim[a][k & 1 ? 0 : 1] - p[a];
+        if (k == 4) q[2] = 2.0f * rm.ceil - p[2];
+        if (k == 5) q[2] = -2.0f * rm.floor - p[2];
+        const float qr = std::sqrt (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]) + 1e-3f;
+        out[k] = { std::atan2 (q[1], q[0]), std::asin (std::fmax (-1.0f, std::fmin (1.0f, q[2] / qr))),
+                   (qr - pr) / kSound, absorb[k] * pr / qr, q[0], q[1], q[2] };
+    }
+}
+
+// one mono sound encoded with ramped gains (the reflections), its top softened by the walls
+struct MonoEncoder
+{
+    std::array<float, ambi::kCh> c {};
+    float lp = 0;
+    void reset() { c.fill (0); lp = 0; }
+    void process (const float* in, float* const* out, int nch, int order, int n, float az, float el, float gain, float orderW, float kLp)
+    {
+        const auto y = ambi::sh (az, el, order);
+        float wl = 1.0f; int lNow = 0;
+        for (int ch = 0; ch < nch; ++ch)
+        {
+            const int l = ambi::orderOf (ch);
+            if (l != lNow) { wl *= orderW; lNow = l; }
+            const float t = gain * wl * y[(size_t) ch], c0 = c[(size_t) ch], dc = (t - c0) / (float) n;
+            float g = c0, z = lp;
+            float* o = out[ch];
+            for (int i = 0; i < n; ++i) { z += (in[i] - z) * kLp; g += dc; o[i] += z * g; }
+            c[(size_t) ch] = t;
+        }
+        for (int i = 0; i < n; ++i) lp += (in[i] - lp) * kLp;
+        for (int ch = nch; ch < ambi::kCh; ++ch) c[(size_t) ch] = 0;
+    }
+};
+
+// ---- the modulators: four LFOs, each a pure function of its phase (in cycles) so the UI can
+// draw exactly what the audio hears
+namespace lfo { enum { Sine = 0, Triangle, RampUp, RampDown, Square, SampleHold, Smooth, Lorenz, Count }; }
+inline const char* const kLfoShape[lfo::Count] = { "Sine", "Triangle", "Ramp up", "Ramp down", "Square", "S&H", "Smooth", "Lorenz" };
+inline float lfoValue (int shape, double phase, float seed)
+{
+    const double n = std::floor (phase);
+    const float f = (float) (phase - n);
+    switch (shape)
+    {
+        case lfo::Sine:     return std::sin (2.0f * kPi * f);
+        case lfo::Triangle: return f < 0.25f ? 4.0f * f : (f < 0.75f ? 2.0f - 4.0f * f : 4.0f * f - 4.0f);
+        case lfo::RampUp:   return 2.0f * f - 1.0f;
+        case lfo::RampDown: return 1.0f - 2.0f * f;
+        case lfo::Square:   return f < 0.5f ? 1.0f : -1.0f;
+        case lfo::SampleHold: return 2.0f * hash01 ((int) std::fmod (n, 1.0e6), seed) - 1.0f;
+        case lfo::Smooth:
+        {
+            const int k = (int) std::fmod (n, 1.0e6);
+            const float a = hash01 (k, seed), b = hash01 (k + 1, seed);
+            const float s = 0.5f - 0.5f * std::cos (kPi * f);
+            return 2.0f * (a + (b - a) * s) - 1.0f;
+        }
+        case lfo::Lorenz:
+        {
+            float v[3]; lorenzAt (seed * 900.0 + phase * 2.0, v);
+            const float x = v[0] / 18.0f;
+            return x < -1.0f ? -1.0f : (x > 1.0f ? 1.0f : x);
+        }
+        default: return 0.0f;
+    }
+}
+// what an LFO can move. Per source: direction, height, distance, size; then the whole field.
+namespace mt { enum { Dir = 0, Height, Dist, Size, PerSource }; enum { Turn = 0, Tilt, Air, Spread, Blur, Rolloff, Doppler, Reflect, Speed, Bow, Global }; }
+inline const char* const kModSrcPart[mt::PerSource] = { "direction", "height", "distance", "size" };
+inline const char* const kModGlobal[mt::Global] = { "Scene turn", "Scene tilt", "Air", "Near spread", "Far blur", "Rolloff",
+                                                     "Doppler", "Reflections", "Motion speed", "Tanpura bow rate" };
+inline int modTargetCount (int sources) { return 1 + sources * mt::PerSource + mt::Global; }
 } // namespace tantri::field
