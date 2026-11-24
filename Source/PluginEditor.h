@@ -34,6 +34,7 @@ public:
     int preferredWidth() const;
     juce::String label;
     std::function<juce::Colour()> valueColour;
+    bool centred = false;   // draw label + value centred in the bounds (the VIEW pill under the title)
 private:
     bool hover = false, dragged = false;
     float lastY = 0;

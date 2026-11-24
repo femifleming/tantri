@@ -59,11 +59,14 @@ int Pill::preferredWidth() const
 void Pill::paint (juce::Graphics& g)
 {
     g.setFont (font (13));
+    const auto t = text ? text() : juce::String();
     float lw = juce::GlyphArrangement::getStringWidth (font (13), label);
+    float x0 = 0;
+    if (centred) x0 = std::round ((getWidth() - (lw + 6 + juce::GlyphArrangement::getStringWidth (font (13), t))) * 0.5f);
     g.setColour (hover ? col::gold2 : col::grey);
-    g.drawText (label, juce::Rectangle<float> (0, 0, lw + 2, (float) getHeight()), juce::Justification::centredLeft);
+    g.drawText (label, juce::Rectangle<float> (x0, 0, lw + 2, (float) getHeight()), juce::Justification::centredLeft);
     g.setColour (valueColour ? valueColour() : col::white);
-    g.drawText (text ? text() : juce::String(), juce::Rectangle<float> (lw + 6, 0, getWidth() - lw - 6, (float) getHeight()), juce::Justification::centredLeft);
+    g.drawText (t, juce::Rectangle<float> (x0 + lw + 6, 0, getWidth() - lw - 6 - x0, (float) getHeight()), juce::Justification::centredLeft);
 }
 void Pill::mouseDown (const juce::MouseEvent& e) { dragged = false; lastY = (float) e.position.y; if (onDragStart && onDrag) onDragStart(); }
 void Pill::mouseDrag (const juce::MouseEvent& e)
@@ -1228,6 +1231,7 @@ Canvas::Canvas (TantriProcessor& p) : proc (p), sitarTile (p), tablaTile (p), ta
         viewPill.text = [this] { return juce::String (spaceView ? "SPACE" : "INSTRUMENT"); };
         viewPill.valueColour = [this] { return spaceView ? col::gold2 : col::white; };
         viewPill.onClick = [this] { setSpaceView (! spaceView); };
+        viewPill.centred = true;
         addAndMakeVisible (viewPill);
     }
     setSize (1200, 780);
@@ -1266,7 +1270,7 @@ void Canvas::resized()
     meendPill.setBounds (28, 42, widthOf (meendPill), 26);
     const int rw = widthOf (roomPill);
     roomPill.setBounds (1172 - rw, 42, rw, 26);
-    if (space) { const int vw = widthOf (viewPill); viewPill.setBounds (600 - vw / 2, 46, vw, 26); }
+    if (space) viewPill.setBounds (500, 46, 200, 26);   // drawn centred on the title's axis (x = 600)
 }
 
 void Canvas::paint (juce::Graphics& g)
